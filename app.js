@@ -61,7 +61,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], polls: [], pollOpts: [], pollVotes: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], polls: [], pollOpts: [], pollVotes: [], admins: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -194,6 +194,8 @@
         pollsOk = false; // poll tables not created yet: keep local polls, don't break the rest
       }
     }
+    var ad = await sb.from('chat_admins').select('*');
+    var adminsOk = !ad.error;
     var ts = await sb.from('team_settings').select('*').eq('id', 1);
     if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) setTeamName(ts.data[0].name);
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
@@ -217,6 +219,7 @@
       state.pollOpts = pres[1].data.sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
       state.pollVotes = pres[2].data;
     }
+    if (adminsOk) state.admins = ad.data.sort(byCreated).map(function (r) { return r.name; });
     state.lineup.pos = {};
     d[7].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
     save(); setSync('synced');
@@ -234,6 +237,14 @@
       addChat(chatRow(p.new), true);
     }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, function (p) {
       if (p.old && p.old.id) removeChat(p.old.id);
+    }).subscribe();
+    sb.channel('admins-live').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_admins' }, function (p) {
+      var r = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!r || !r.name) return;
+      var k = r.name.toLowerCase();
+      state.admins = state.admins.filter(function (n) { return n.toLowerCase() !== k; });
+      if (p.eventType !== 'DELETE') state.admins.push(r.name);
+      save(); renderChat(); renderPolls(); renderMembers();
     }).subscribe();
   }
 
@@ -809,6 +820,15 @@
     list.forEach(function (ev) { ul.appendChild(eventCard(ev)); });
   }
 
+  // ---------- chat admins ----------
+  function isAdmin(name) {
+    var k = (name || '').toLowerCase();
+    return !!k && state.admins.some(function (n) { return n.toLowerCase() === k; });
+  }
+  function iAmAdmin() { return isAdmin(myName()); }
+  // With no admins yet nobody can enforce anything, so polls stay deletable by everyone until the first claim.
+  function canDeletePoll() { return !state.admins.length || iAmAdmin(); }
+
   // ---------- polls ----------
   function pollOptsOf(pid) {
     return state.pollOpts.filter(function (o) { return o.poll_id === pid; })
@@ -838,7 +858,7 @@
       state.pollVotes = state.pollVotes.filter(function (v) { return v.poll_id !== poll.id; });
       push({ t: 'polls', a: 'del', m: { id: poll.id } }); renderPolls();
     };
-    top.appendChild(del);
+    if (canDeletePoll()) top.appendChild(del);
     li.appendChild(top);
     var votes = state.pollVotes.filter(function (v) { return v.poll_id === poll.id; });
     var me = myName();
@@ -920,10 +940,10 @@
       if (day !== lastDay) { box.appendChild(el('div', 'day', day)); lastDay = day; lastSender = ''; }
       var mine = !!me && m.sender === me;
       var b = el('div', 'bubble ' + (mine ? 'mine' : 'theirs') + (lastSender === m.sender ? ' cont' : ''));
-      if (!mine && lastSender !== m.sender) b.appendChild(el('div', 'who', m.sender));
+      if (!mine && lastSender !== m.sender) b.appendChild(el('div', 'who', m.sender + (isAdmin(m.sender) ? ' ⭐' : '')));
       b.appendChild(el('span', 'body', m.body));
       b.appendChild(el('span', 'time', fmtTime(m.created_at)));
-      if (mine) {
+      if (mine || iAmAdmin()) {
         b.classList.add('deletable'); b.title = 'Tap to delete';
         b.onclick = (function (msg) { return function () { deleteChat(msg); }; })(m);
       }
@@ -940,8 +960,8 @@
     if (state.chat.length !== n) { save(); renderChat(); }
   }
   function deleteChat(m) {
-    if (!myName() || m.sender !== myName()) return;
-    if (!confirm('Delete this message?\n\n' + m.body.slice(0, 120))) return;
+    if (!myName() || (m.sender !== myName() && !iAmAdmin())) return;
+    if (!confirm('Delete ' + (m.sender === myName() ? 'this message' : m.sender + "'s message") + '?\n\n' + m.body.slice(0, 120))) return;
     removeChat(m.id);
     push({ t: 'chat_messages', a: 'del', m: { id: m.id } });
   }
@@ -988,13 +1008,79 @@
     push({ t: 'chat_messages', a: 'up', r: m });
     inp.focus();
   };
+  function memberNames() {
+    var seen = {}, out = [];
+    function add(n) {
+      n = (n || '').trim(); var k = n.toLowerCase();
+      if (n && !seen[k]) { seen[k] = 1; out.push(n); }
+    }
+    state.admins.forEach(add);
+    add(myName());
+    state.players.forEach(function (p) { add(p.name); });
+    state.chat.forEach(function (m) { add(m.sender); });
+    return out.sort(function (x, y) {
+      return (isAdmin(y) - isAdmin(x)) || x.toLowerCase().localeCompare(y.toLowerCase());
+    });
+  }
+  function setAdmin(name, on) {
+    var k = name.toLowerCase();
+    var stored = state.admins.filter(function (n) { return n.toLowerCase() === k; })[0] || name;
+    state.admins = state.admins.filter(function (n) { return n.toLowerCase() !== k; });
+    if (on) {
+      state.admins.push(name);
+      push({ t: 'chat_admins', a: 'up', r: { name: name, created_at: nowIso() } });
+    } else {
+      push({ t: 'chat_admins', a: 'del', m: { name: stored } });
+    }
+    save(); renderMembers(); renderChat(); renderPolls();
+  }
+  function renderMembers() {
+    var box = $('members-body');
+    if (!box || $('members').hidden) return;
+    box.innerHTML = '';
+    var me = myName(), amAdmin = iAmAdmin();
+    if (!state.admins.length) {
+      var c = el('div', 'claim');
+      c.appendChild(el('p', 'muted', 'This group has no admin yet. The first person to claim becomes admin and can then appoint others.'));
+      var cb = el('button', 'primary', '⭐ Claim admin');
+      cb.type = 'button';
+      cb.onclick = function () {
+        var n = myName() || askName('Your name for chat');
+        if (n && !state.admins.length) setAdmin(n, true);
+      };
+      c.appendChild(cb); box.appendChild(c);
+    } else {
+      box.appendChild(el('p', 'muted', amAdmin ? 'You are an admin: you can appoint admins and delete any message or poll.'
+        : 'Admins (⭐) can delete any message or poll and appoint other admins.'));
+    }
+    var ul = el('ul', 'member-list');
+    memberNames().forEach(function (n) {
+      var adm = isAdmin(n);
+      var li = el('li', 'member' + (adm ? ' is-admin' : ''));
+      li.appendChild(el('span', 'mname', n + (me && n.toLowerCase() === me.toLowerCase() ? ' (you)' : '')));
+      if (adm) li.appendChild(el('span', 'admin-badge', '⭐ Admin'));
+      if (amAdmin) {
+        var b = el('button', 'link' + (adm ? ' danger' : ''), adm ? 'Remove admin' : 'Make admin');
+        b.type = 'button';
+        b.onclick = function () {
+          if (adm && state.admins.length === 1 && !confirm('This is the last admin. Remove anyway? Then anyone can claim admin again.')) return;
+          setAdmin(n, !adm);
+        };
+        li.appendChild(b);
+      }
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+  }
+  $('members-btn').onclick = function () { $('members').hidden = !$('members').hidden; renderMembers(); };
+  $('members-close').onclick = function () { $('members').hidden = true; };
   $('chat-name').onclick = function () { if (askName('Your name for chat')) renderChat(); };
 
   // ---------- render ----------
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat(); renderMembers();
   }
   renderTeamName();
   if ($('teamEdit')) $('teamEdit').addEventListener('click', editTeamName);

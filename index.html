@@ -170,7 +170,8 @@
 <div id="chat-pane" class="pane">
   <section id="chat" class="tab active">
     <div class="chat-wrap">
-      <div class="chat-head"><span>Team chat</span><button id="chat-name" class="link light" type="button">Change name</button></div>
+      <div class="chat-head"><span>Team chat</span><span><button id="members-btn" class="link light" type="button">👥 Members</button><button id="chat-name" class="link light" type="button">Change name</button></span></div>
+      <div id="members" class="members" hidden><div class="members-head"><strong>Group info</strong><button id="members-close" class="link" type="button">Close</button></div><div id="members-body"></div></div>
       <div id="chat-msgs" class="chat-msgs"></div>
       <form id="chat-form" class="chat-bar">
         <input id="chat-input" type="text" placeholder="Type a message" autocomplete="off" aria-label="Message">

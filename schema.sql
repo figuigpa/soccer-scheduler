@@ -117,3 +117,13 @@ alter table team_settings enable row level security;
 drop policy if exists "open" on team_settings;
 create policy "open" on team_settings for all using (true) with check (true);
 alter publication supabase_realtime add table team_settings;
+
+-- Chat admins (WhatsApp-style): any number of admins
+create table if not exists chat_admins (
+  name text primary key,
+  created_at timestamptz default now()
+);
+alter table chat_admins enable row level security;
+drop policy if exists "open" on chat_admins;
+create policy "open" on chat_admins for all using (true) with check (true);
+alter publication supabase_realtime add table chat_admins;
