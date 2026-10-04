@@ -2164,7 +2164,6 @@
   $('chat-more').onclick = function (e) { e.stopPropagation(); $('chat-menu').hidden = !$('chat-menu').hidden; };
   document.addEventListener('click', function () { $('chat-menu').hidden = true; });
   $('chat-back').onclick = function () { showTab(beforeChat); };
-  $('chat-video').onclick = function () { uiAlert('Video calls are not available in this app.'); };
   $('members-close').onclick = function () { $('members').hidden = true; };
 
 
