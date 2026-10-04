@@ -928,21 +928,34 @@
     if (ids.length) push({ t: 'lineup_positions', a: 'del', m: { player_id: ids } });
     renderLineup();
   };
+  // rows back-to-front (GK, defense, midfield, attack) for n players
+  function formationRows(n) {
+    if (n <= 1) return [n];
+    if (n === 6) return [2, 3, 1];
+    var rest = n - 1, att = rest >= 7 ? 2 : rest >= 3 ? 1 : 0, r = rest - att, def = Math.ceil(r / 2), mid = r - def;
+    return [1, def, mid, att].filter(function (c) { return c > 0; });
+  }
+  function placeSide(list, top) {
+    var rows = formationRows(list.length), i = 0, p = state.lineup.pos;
+    rows.forEach(function (c, ri) {
+      var t = rows.length === 1 ? 0.5 : ri / (rows.length - 1);
+      var y = top ? 8 + t * 34 : 92 - t * 34;
+      for (var j = 0; j < c; j++) p[list[i++].id] = { x: c === 1 ? 50 : 18 + j * (64 / (c - 1)), y: y };
+    });
+  }
   $('lu-auto').onclick = function () {
     var list = onField();
-    if (!list.length) list = lineupPool().slice(0, 11);
-    var n = list.length; if (!n) return;
-    var rows, gk = n !== 6;
-    if (n === 6) rows = [1, 2, 3];
-    else {
-      var rest = n - 1, att = rest >= 7 ? 2 : rest >= 3 ? 1 : 0, r = rest - att, def = Math.ceil(r / 2), mid = r - def;
-      rows = [att, mid, def].filter(function (c) { return c > 0; });
-    }
-    if (gk) rows.push(1);
-    var i = 0;
-    rows.forEach(function (c, ri) {
-      var y = rows.length === 1 ? 50 : 20 + ri * (72 / (rows.length - 1));
-      for (var j = 0; j < c; j++) state.lineup.pos[list[i++].id] = { x: (j + 1) / (c + 1) * 100, y: y };
+    if (!list.length) list = lineupPool().slice(0, 22);
+    if (!list.length) return;
+    var pr = selected(), side = { red: [], yellow: [], none: [] };
+    list.forEach(function (pl) {
+      var t = pr && teamOf(pr.id, pl.id);
+      side[t === 'red' || t === 'yellow' ? t : 'none'].push(pl);
+    });
+    placeSide(side.red, true);
+    placeSide(side.yellow, false);
+    side.none.forEach(function (pl, k) {
+      state.lineup.pos[pl.id] = { x: 5, y: side.none.length === 1 ? 50 : 8 + k * (84 / (side.none.length - 1)) };
     });
     luSel = null; save();
     list.forEach(function (pl) { push(posOp(pl.id, state.lineup.pos[pl.id])); });
