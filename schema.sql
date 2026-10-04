@@ -188,6 +188,7 @@ create table if not exists help_volunteers (
   volunteer_name text,
   created_at timestamptz default now()
 );
+alter table help_volunteers add column if not exists response text default 'in' check (response in ('in','maybe','cant'));
 alter table help_requests enable row level security;
 alter table help_volunteers enable row level security;
 drop policy if exists "open" on help_requests;

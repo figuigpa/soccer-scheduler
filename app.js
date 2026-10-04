@@ -1389,25 +1389,43 @@
     li.appendChild(el('small', 'muted', 'Posted by ' + (r.posted_by || 'Someone') + (isNaN(d) ? '' : ' · ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))));
     var vols = state.helpVols.filter(function (v) { return v.request_id === r.id; });
     if (r.is_resolved) li.appendChild(ei('small', 'help-done', 'check', 'Resolved'));
-    if (vols.length) li.appendChild(ei('small', 'help-vols', 'users', vols.map(function (v) { return v.volunteer_name; }).join(', ') + (vols.length === 1 ? ' can help' : ' can help')));
-    var acts = el('div', 'help-acts');
+    var RS = [['in', "I'm in"], ['maybe', 'Maybe'], ['cant', "Can't"]];
+    function respOf(v) { return v.response || 'in'; }
     var me = myName(), mine = vols.filter(function (v) { return v.volunteer_name === me; })[0];
+    if (vols.length) {
+      li.appendChild(el('small', 'help-counts', RS.map(function (x) {
+        return vols.filter(function (v) { return respOf(v) === x[0]; }).length + ' ' + (x[0] === 'cant' ? "can't" : x[0] === 'in' ? 'in' : 'maybe');
+      }).join(' · ')));
+      RS.forEach(function (x) {
+        var names = vols.filter(function (v) { return respOf(v) === x[0]; }).map(function (v) { return v.volunteer_name; });
+        if (names.length) li.appendChild(el('small', 'help-resp ' + x[0], x[1] + ': ' + names.join(', ')));
+      });
+    }
+    var acts = el('div', 'help-acts');
     if (!r.is_resolved) {
-      var hb = el('button', 'vol' + (mine ? ' on' : ''), mine ? 'Withdraw' : 'I can help');
-      hb.type = 'button';
-      hb.onclick = function () {
-        if (!me) { uiAlert('Log in to volunteer.'); return; }
-        if (mine) {
-          state.helpVols = state.helpVols.filter(function (v) { return v.id !== mine.id; });
-          push({ t: 'help_volunteers', a: 'del', m: { id: mine.id } });
-        } else {
-          var v = { id: uid(), request_id: r.id, volunteer_name: me, created_at: nowIso() };
-          state.helpVols.push(v);
-          push({ t: 'help_volunteers', a: 'up', r: v });
-        }
-        renderHelp();
-      };
-      acts.appendChild(hb);
+      var rg = el('div', 'help-rsvp');
+      RS.forEach(function (x) {
+        var on = mine && respOf(mine) === x[0];
+        var hb = el('button', 'rsvp ' + x[0] + (on ? ' on' : ''), x[1]);
+        hb.type = 'button';
+        hb.onclick = function () {
+          if (!me) { uiAlert('Log in to respond.'); return; }
+          if (mine && respOf(mine) === x[0]) {
+            state.helpVols = state.helpVols.filter(function (v) { return v.id !== mine.id; });
+            push({ t: 'help_volunteers', a: 'del', m: { id: mine.id } });
+          } else if (mine) {
+            mine.response = x[0];
+            push({ t: 'help_volunteers', a: 'up', r: mine });
+          } else {
+            var v = { id: uid(), request_id: r.id, volunteer_name: me, response: x[0], created_at: nowIso() };
+            state.helpVols.push(v);
+            push({ t: 'help_volunteers', a: 'up', r: v });
+          }
+          renderHelp();
+        };
+        rg.appendChild(hb);
+      });
+      acts.appendChild(rg);
     }
     if (canManageHelp(r)) {
       var rb = el('button', 'link', r.is_resolved ? 'Reopen' : 'Mark resolved');

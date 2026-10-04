@@ -582,6 +582,14 @@ body.locked .gate{display:grid}
 .help-vols,.help-done{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--green2);font-weight:700}
 .help-vols svg.i,.help-done svg.i{width:14px;height:14px}
 .help-acts{display:flex;align-items:center;gap:14px;margin-top:10px}
+.help-counts{display:block;margin-top:6px;font-weight:800;color:var(--ink)}
+.help-resp{display:block;margin-top:2px;font-weight:700}
+.help-resp.in{color:#2e7d32}.help-resp.maybe{color:#d98200}.help-resp.cant{color:#8a8f8c}
+.help-rsvp{display:flex;gap:6px;flex:1}
+.rsvp{flex:1;min-height:40px;border:2px solid var(--line);background:#fff;border-radius:12px;font-weight:800;color:#4a5c50;padding:0 6px}
+.rsvp.in.on{background:#2e9d4a;border-color:#2e9d4a;color:#fff}
+.rsvp.maybe.on{background:#f4a300;border-color:#f4a300;color:#3a2a00}
+.rsvp.cant.on{background:#8a8f8c;border-color:#8a8f8c;color:#fff}
 .help.resolved{border-left-color:var(--line);opacity:.75}
 /* announcement bot messages */
 .row.bot{justify-content:center;margin:8px 0 4px}
