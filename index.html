@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14532d">
+<title>Soccer Practice Scheduler</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>⚽ Practice Scheduler</h1>
+  <nav>
+    <button data-tab="practices" class="active">Practices</button>
+    <button data-tab="players">Players</button>
+    <button data-tab="avail">Availability</button>
+    <button data-tab="teams">Teams</button>
+  </nav>
+</header>
+<main>
+  <section id="practices" class="tab active">
+    <form id="practice-form" class="card">
+      <h2>New practice</h2>
+      <label>Date <input type="date" id="p-date" required></label>
+      <label>Time <input type="time" id="p-time" required></label>
+      <label>Location / notes <input type="text" id="p-place" placeholder="Field 3, bring water"></label>
+      <button class="primary" type="submit">Add practice</button>
+    </form>
+    <h2>Upcoming</h2>
+    <ul id="upcoming" class="list"></ul>
+    <h2>Past</h2>
+    <ul id="past" class="list"></ul>
+  </section>
+
+  <section id="players" class="tab">
+    <form id="player-form" class="card row">
+      <input type="text" id="player-name" placeholder="Player name" required>
+      <button class="primary" type="submit">Add</button>
+    </form>
+    <p id="player-count" class="muted"></p>
+    <ul id="player-list" class="list"></ul>
+  </section>
+
+  <section id="avail" class="tab">
+    <select id="avail-practice" class="practice-select"></select>
+    <div id="avail-counts" class="counts"></div>
+    <p class="muted">Tap a player to cycle: maybe → available → unavailable.</p>
+    <ul id="avail-list" class="list"></ul>
+  </section>
+
+  <section id="teams" class="tab">
+    <select id="teams-practice" class="practice-select"></select>
+    <div class="picker">
+      <span>Tap adds to:</span>
+      <button id="pick-red" class="pick red active">Red</button>
+      <button id="pick-yellow" class="pick yellow">Yellow</button>
+      <button id="auto-balance" class="pick">Auto-balance</button>
+    </div>
+    <div id="balance" class="balance"></div>
+    <div class="columns">
+      <div class="col red"><h3>TEAM RED <span id="red-n">0</span></h3><ul id="red-list"></ul></div>
+      <div class="col yellow"><h3>TEAM YELLOW <span id="yellow-n">0</span></h3><ul id="yellow-list"></ul></div>
+    </div>
+    <h3>Available players</h3>
+    <ul id="pool" class="list"></ul>
+    <h3>Unavailable</h3>
+    <ul id="out" class="list"></ul>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
