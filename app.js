@@ -748,15 +748,35 @@
   }
   $('pick-red').onclick = function () { pickTeam = 'red'; renderTeams(); };
   $('pick-yellow').onclick = function () { pickTeam = 'yellow'; renderTeams(); };
+  var shuffling = false;
   $('auto-balance').onclick = function () {
-    var p = selected(); if (!p) return;
+    var p = selected(); if (!p || shuffling) return;
+    var ids = state.players.filter(function (pl) { return teamable(getAvail(p.id, pl.id)); }).map(function (pl) { return pl.id; });
+    if (!ids.length) return;
+    // Fisher-Yates: draw names from a hat
+    for (var i = ids.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), tmp = ids[i]; ids[i] = ids[j]; ids[j] = tmp;
+    }
     var t = state.teams[p.id] = state.teams[p.id] || {};
-    var c = { red: 0, yellow: 0 };
-    state.players.forEach(function (pl) { if (t[pl.id] && teamable(getAvail(p.id, pl.id))) c[t[pl.id]]++; });
-    state.players.filter(function (pl) { return getAvail(p.id, pl.id) === 'available' && !t[pl.id]; })
-      .sort(function () { return Math.random() - 0.5; })
-      .forEach(function (pl) { var k = c.red <= c.yellow ? 'red' : 'yellow'; t[pl.id] = k; c[k]++; });
-    save(); renderTeams();
+    ids.forEach(function (id) { delete t[id]; });
+    shuffling = true;
+    renderTeams();
+    var pool = $('pool'), n = 0;
+    pool.classList.add('shuffling');
+    var tick = setInterval(function () {
+      var kids = Array.prototype.slice.call(pool.children);
+      kids.sort(function () { return Math.random() - 0.5; }).forEach(function (k) { pool.appendChild(k); });
+      if (++n < 6) return;
+      clearInterval(tick);
+      pool.classList.remove('shuffling');
+      var half = Math.ceil(ids.length / 2); // Red gets the extra player when odd
+      ids.forEach(function (id, k) { t[id] = k < half ? 'red' : 'yellow'; });
+      shuffling = false;
+      save(); renderTeams();
+      ['red-list', 'yellow-list'].forEach(function (id) {
+        Array.prototype.forEach.call($(id).querySelectorAll('.pchip'), function (c, k) { c.style.animationDelay = (k * 40) + 'ms'; c.classList.add('settle'); });
+      });
+    }, 130);
   };
 
   // ---------- lineup board ----------
