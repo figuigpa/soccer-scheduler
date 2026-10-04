@@ -620,11 +620,17 @@
         var i = f.querySelector('input:not([type=hidden]),select'); if (i) try { i.focus({ preventScroll: true }); } catch (e) { i.focus(); }
       }, 60);
     }
+    function openHelp() {
+      var v = $('help-view'); v.hidden = false; $('help-fold').open = true; v.querySelector('.help-body').scrollTop = 0;
+      setTimeout(function () { try { $('h-title').focus({ preventScroll: true }); } catch (e) { $('h-title').focus(); } }, 60);
+    }
+    $('help-close').onclick = function () { $('help-view').hidden = true; };
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('help-view').hidden && !document.querySelector('.md-overlay')) $('help-view').hidden = true; });
     var actions = {
       game: function () { openFold('practices', 'practice-fold'); },
       event: function () { openFold('events', 'event-fold'); },
       poll: function () { openFold('polls', 'poll-fold'); },
-      help: function () { openFold('events', 'help-fold'); },
+      help: function () { openHelp(); },
       photo: function () { showTab('album'); openAlbumSheet(); }
     };
     fab.onclick = function () { setOpen(!wrap.classList.contains('show')); };
