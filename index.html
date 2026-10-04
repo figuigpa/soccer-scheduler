@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#14532d">
+<meta name="theme-color" content="#0b2e1a">
 <meta name="description" content="فريق الرشاد الفݣيݣي PA – team schedule, lineup, events and chat">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -20,26 +20,28 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<header>
+<header class="app-head">
   <div class="brand">
-    <span class="ball">⚽</span>
-    <h1 lang="ar" dir="rtl">فريق الرشاد الفݣيݣي <span class="pa">PA</span></h1>
-    <span id="sync" class="sync off">● Local only</span>
+    <span class="crest" aria-hidden="true">⚽</span>
+    <div class="title">
+      <h1 lang="ar" dir="rtl">فريق الرشاد الفݣيݣي <span class="pa">PA</span></h1>
+      <span id="sync" class="sync off">● Local only</span>
+    </div>
   </div>
-  <nav>
-    <button data-tab="practices" class="active">📅 Practices</button>
-    <button data-tab="players">👥 Players</button>
-    <button data-tab="avail">✅ Availability</button>
-    <button data-tab="teams">🎽 Teams</button>
-    <button data-tab="lineup">📋 Lineup</button>
-    <button data-tab="events">🎉 Events</button>
-    <button data-tab="chat">💬 Chat <b id="chat-dot" class="dot" style="display:none">0</b></button>
-  </nav>
+  <div class="stripe"><i></i><i></i><i></i></div>
 </header>
 <main>
+<div id="soccer" class="pane active">
+<nav class="subnav" data-pane="soccer">
+  <button data-tab="practices" class="active">📅 Practices</button>
+  <button data-tab="players">👥 Players</button>
+  <button data-tab="avail">✅ Availability</button>
+  <button data-tab="teams">🎽 Teams</button>
+  <button data-tab="lineup">📋 Lineup</button>
+</nav>
   <section id="practices" class="tab active">
-    <form id="practice-form" class="card">
-      <h2>New practice</h2>
+    <details class="card fold" id="practice-fold"><summary>＋ New practice</summary>
+    <form id="practice-form">
       <div class="grid2">
         <label>Date <input type="date" id="p-date" required></label>
         <label>Time <input type="time" id="p-time" required></label>
@@ -49,7 +51,7 @@
       <label>Map link <input type="url" id="p-map" placeholder="https://maps.google.com/… (optional)"></label>
       <label>Notes <input type="text" id="p-notes" placeholder="Optional"></label>
       <button class="primary" type="submit">Add practice</button>
-    </form>
+    </form></details>
     <h2>Upcoming</h2>
     <ul id="upcoming" class="list"></ul>
     <h2>Past</h2>
@@ -123,9 +125,13 @@
     <div id="lu-roster" class="chips"></div>
   </section>
 
-  <section id="events" class="tab">
-    <form id="event-form" class="card">
-      <h2>New event</h2>
+</div>
+<div id="gather" class="pane">
+
+  <section id="events" class="tab active">
+    <h2 class="page-title">🎉 Gathering</h2>
+    <details class="card fold" id="event-fold"><summary>＋ New event</summary>
+    <form id="event-form">
       <label>Title <input type="text" id="e-title" placeholder="Season party, fundraiser…" required></label>
       <div class="grid2">
         <label>Date <input type="date" id="e-date"></label>
@@ -136,14 +142,15 @@
       <label>Map link <input type="url" id="e-map" placeholder="https://maps.google.com/…"></label>
       <label>Notes <input type="text" id="e-notes" placeholder="Optional"></label>
       <button class="primary" type="submit">Add event</button>
-    </form>
+    </form></details>
     <h2>Events</h2>
     <ul id="event-list" class="list"></ul>
   </section>
-
-  <section id="chat" class="tab">
+</div>
+<div id="chat-pane" class="pane">
+  <section id="chat" class="tab active">
     <div class="chat-wrap">
-      <div class="chat-head"><span>💬 Team chat</span><button id="chat-name" class="link light" type="button">Change name</button></div>
+      <div class="chat-head"><span>Team chat</span><button id="chat-name" class="link light" type="button">Change name</button></div>
       <div id="chat-msgs" class="chat-msgs"></div>
       <form id="chat-form" class="chat-bar">
         <input id="chat-input" type="text" placeholder="Type a message" autocomplete="off" aria-label="Message">
@@ -151,7 +158,13 @@
       </form>
     </div>
   </section>
+</div>
 </main>
+<nav class="bottombar" aria-label="Main">
+  <button data-pane="soccer" class="active"><span class="ic">⚽</span><span class="lb">Soccer</span></button>
+  <button data-pane="gather"><span class="ic">🎉</span><span class="lb">Gathering</span></button>
+  <button data-pane="chat-pane"><span class="ic">💬<b id="chat-dot" class="dot" style="display:none">0</b></span><span class="lb">Chat</span></button>
+</nav>
 <script src="app.js"></script>
 </body>
 </html>

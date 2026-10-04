@@ -47,6 +47,17 @@
     return a;
   }
 
+  function mapEmbed(addr) {
+    if (!addr || !addr.trim()) return null;
+    var wrap = el('div', 'map-embed');
+    var f = document.createElement('iframe');
+    f.src = 'https://www.google.com/maps?q=' + encodeURIComponent(addr.trim()) + '&output=embed';
+    f.loading = 'lazy'; f.title = 'Map: ' + addr.trim();
+    f.referrerPolicy = 'no-referrer-when-downgrade'; f.setAttribute('allowfullscreen', '');
+    wrap.appendChild(f);
+    return wrap;
+  }
+
   // ---------- state / persistence ----------
   function blank() {
     return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [],
@@ -207,19 +218,27 @@
   function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
   function teamable(a) { return a === 'maybe' || a === 'available'; }
 
-  // ---------- tabs ----------
-  var tabBtns = document.querySelectorAll('nav button');
+  // ---------- navigation: 2 panes (Soccer / Gathering), each with sub-sections ----------
+  var paneOf = { practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', chat: 'chat-pane' };
+  var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat' };
+  var curTab = 'practices';
   function showTab(name) {
-    tabBtns.forEach(function (x) { x.classList.toggle('active', x.dataset.tab === name); });
+    var pane = paneOf[name] || 'soccer';
+    curTab = name; lastSub[pane] = name;
+    document.querySelectorAll('.bottombar button').forEach(function (x) { x.classList.toggle('active', x.dataset.pane === pane); });
+    document.querySelectorAll('.pane').forEach(function (p) { p.classList.toggle('active', p.id === pane); });
+    document.querySelectorAll('.subnav button').forEach(function (x) { x.classList.toggle('active', x.dataset.tab === name); });
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.id === name); });
     document.body.classList.toggle('on-chat', name === 'chat');
+    document.querySelectorAll('.subnav button').forEach(function (x) { x.setAttribute('aria-selected', x.dataset.tab === name); });
     if (name === 'chat') openChat();
     renderAll();
     window.scrollTo(0, 0);
-    var b = document.querySelector('nav button.active');
+    var b = document.querySelector('.subnav button[data-tab="' + name + '"]');
     if (b && b.scrollIntoView) b.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
-  tabBtns.forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
+  document.querySelectorAll('.subnav button').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
+  document.querySelectorAll('.bottombar button').forEach(function (b) { b.onclick = function () { showTab(lastSub[b.dataset.pane]); }; });
 
   // ---------- bring list (practices + events) ----------
   function bringList(owner) {
@@ -291,7 +310,7 @@
     state.practices.push(p);
     if (!state.sel) state.sel = p.id;
     push({ t: 'practices', a: 'up', r: practiceRow(p) });
-    e.target.reset(); renderAll();
+    e.target.reset(); $('practice-fold').open = false; renderAll();
   };
   function practiceItem(p) {
     var li = el('li', 'card-item');
@@ -312,6 +331,8 @@
     };
     top.appendChild(info); top.appendChild(del);
     li.appendChild(top);
+    var me = mapEmbed(p.field_address);
+    if (me) li.appendChild(me);
     var acts = el('div', 'acts');
     var mb = mapsBtn(p.field_map_url, p.field_address);
     if (mb) acts.appendChild(mb);
@@ -618,7 +639,7 @@
     if (ev.venue_map_url && !safeUrl(ev.venue_map_url)) { alert('Map link must start with http:// or https://'); return; }
     state.events.push(ev);
     push({ t: 'events', a: 'up', r: eventRow(ev) });
-    e.target.reset(); renderAll();
+    e.target.reset(); $('event-fold').open = false; renderAll();
   };
   function eventRow(ev) {
     return { id: ev.id, title: ev.title, date: ev.date || null, time: ev.time || null, venue_name: ev.venue_name || null,
@@ -685,6 +706,8 @@
     };
     top.appendChild(info); top.appendChild(del);
     li.appendChild(top);
+    var me = mapEmbed(ev.venue_address);
+    if (me) li.appendChild(me);
     var mb = mapsBtn(ev.venue_map_url, ev.venue_address);
     if (mb) { var acts = el('div', 'acts'); acts.appendChild(mb); li.appendChild(acts); }
     li.appendChild(bringList({ event_id: ev.id }));
@@ -700,7 +723,7 @@
 
   // ---------- chat ----------
   var unread = 0, chatBound = false;
-  function chatActive() { return $('chat').classList.contains('active'); }
+  function chatActive() { return curTab === 'chat'; }
   function fmtTime(iso) {
     var d = new Date(iso);
     return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
