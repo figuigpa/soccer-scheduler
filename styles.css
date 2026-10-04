@@ -160,3 +160,7 @@ button:active{transform:scale(.96)}
 .send{flex:none;width:48px;height:48px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-size:1.15rem;box-shadow:0 3px 8px rgba(20,83,45,.3)}
 body.on-chat{overflow:hidden;padding-bottom:0}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.edit{min-width:42px;min-height:42px;border:0;border-radius:50%;background:#eaf1fb;color:var(--green,#2a6);font-size:1rem;font-weight:800;flex:none;margin-right:6px}
+.cancel{width:100%;min-height:42px;margin-top:8px;border:0;border-radius:10px;background:#eee;font-weight:700}
+.cancel[hidden]{display:none}

@@ -304,14 +304,32 @@
   // ---------- practices ----------
   $('practice-form').onsubmit = function (e) {
     e.preventDefault();
-    var p = { id: uid(), date: $('p-date').value, time: $('p-time').value, location: $('p-place').value.trim(),
-      field_address: $('p-addr').value.trim(), field_map_url: $('p-map').value.trim(), notes: $('p-notes').value.trim(), created_at: nowIso() };
+    var old = editingPractice && state.practices.filter(function (x) { return x.id === editingPractice; })[0];
+    var p = { id: old ? old.id : uid(), date: $('p-date').value, time: $('p-time').value, location: $('p-place').value.trim(),
+      field_address: $('p-addr').value.trim(), field_map_url: $('p-map').value.trim(), notes: $('p-notes').value.trim(), created_at: old ? old.created_at : nowIso() };
     if (p.field_map_url && !safeUrl(p.field_map_url)) { alert('Map link must start with http:// or https://'); return; }
-    state.practices.push(p);
-    if (!state.sel) state.sel = p.id;
+    if (old) { state.practices[state.practices.indexOf(old)] = p; }
+    else { state.practices.push(p); if (!state.sel) state.sel = p.id; }
     push({ t: 'practices', a: 'up', r: practiceRow(p) });
-    e.target.reset(); $('practice-fold').open = false; renderAll();
+    endPracticeEdit(); renderAll();
   };
+  var editingPractice = null;
+  function endPracticeEdit() {
+    editingPractice = null; $('practice-form').reset(); $('practice-fold').open = false;
+    $('practice-form').querySelector('button.primary').textContent = 'Add practice';
+    $('practice-fold').querySelector('summary').textContent = '＋ New practice';
+    $('p-cancel').hidden = true;
+  }
+  $('p-cancel').onclick = function () { endPracticeEdit(); };
+  function startPracticeEdit(p) {
+    editingPractice = p.id;
+    $('p-date').value = p.date || ''; $('p-time').value = p.time || ''; $('p-place').value = p.location || '';
+    $('p-addr').value = p.field_address || ''; $('p-map').value = p.field_map_url || ''; $('p-notes').value = p.notes || '';
+    $('practice-form').querySelector('button.primary').textContent = 'Save changes';
+    $('practice-fold').querySelector('summary').textContent = '✎ Edit practice';
+    $('p-cancel').hidden = false;
+    $('practice-fold').open = true; $('practice-fold').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
   function practiceItem(p) {
     var li = el('li', 'card-item');
     var top = el('div', 'top');
@@ -329,7 +347,10 @@
       delete state.avail[p.id]; delete state.teams[p.id];
       push({ t: 'practices', a: 'del', m: { id: p.id } }); renderAll();
     };
-    top.appendChild(info); top.appendChild(del);
+    var edit = el('button', 'edit', '✎');
+    edit.setAttribute('aria-label', 'Edit practice');
+    edit.onclick = function () { startPracticeEdit(p); };
+    top.appendChild(info); top.appendChild(edit); top.appendChild(del);
     li.appendChild(top);
     var me = mapEmbed(p.field_address);
     if (me) li.appendChild(me);
@@ -632,15 +653,34 @@
   // ---------- events ----------
   $('event-form').onsubmit = function (e) {
     e.preventDefault();
-    var ev = { id: uid(), title: $('e-title').value.trim(), date: $('e-date').value, time: $('e-time').value,
+    var old = editingEvent && state.events.filter(function (x) { return x.id === editingEvent; })[0];
+    var ev = { id: old ? old.id : uid(), title: $('e-title').value.trim(), date: $('e-date').value, time: $('e-time').value,
       venue_name: $('e-venue').value.trim(), venue_address: $('e-addr').value.trim(), venue_map_url: $('e-map').value.trim(),
-      notes: $('e-notes').value.trim(), created_at: nowIso() };
+      notes: $('e-notes').value.trim(), created_at: old ? old.created_at : nowIso() };
     if (!ev.title) return;
     if (ev.venue_map_url && !safeUrl(ev.venue_map_url)) { alert('Map link must start with http:// or https://'); return; }
-    state.events.push(ev);
+    if (old) state.events[state.events.indexOf(old)] = ev; else state.events.push(ev);
     push({ t: 'events', a: 'up', r: eventRow(ev) });
-    e.target.reset(); $('event-fold').open = false; renderAll();
+    endEventEdit(); renderAll();
   };
+  var editingEvent = null;
+  function endEventEdit() {
+    editingEvent = null; $('event-form').reset(); $('event-fold').open = false;
+    $('event-form').querySelector('button.primary').textContent = 'Add event';
+    $('event-fold').querySelector('summary').textContent = '＋ New event';
+    $('e-cancel').hidden = true;
+  }
+  $('e-cancel').onclick = function () { endEventEdit(); };
+  function startEventEdit(ev) {
+    editingEvent = ev.id;
+    $('e-title').value = ev.title || ''; $('e-date').value = ev.date || ''; $('e-time').value = ev.time || '';
+    $('e-venue').value = ev.venue_name || ''; $('e-addr').value = ev.venue_address || '';
+    $('e-map').value = ev.venue_map_url || ''; $('e-notes').value = ev.notes || '';
+    $('event-form').querySelector('button.primary').textContent = 'Save changes';
+    $('event-fold').querySelector('summary').textContent = '✎ Edit event';
+    $('e-cancel').hidden = false;
+    $('event-fold').open = true; $('event-fold').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
   function eventRow(ev) {
     return { id: ev.id, title: ev.title, date: ev.date || null, time: ev.time || null, venue_name: ev.venue_name || null,
       venue_address: ev.venue_address || null, venue_map_url: ev.venue_map_url || null, notes: ev.notes || null, created_at: ev.created_at || nowIso() };
@@ -704,7 +744,10 @@
       state.assignments = state.assignments.filter(function (x) { return x.event_id !== ev.id; });
       push({ t: 'events', a: 'del', m: { id: ev.id } }); renderAll();
     };
-    top.appendChild(info); top.appendChild(del);
+    var edit = el('button', 'edit', '✎');
+    edit.setAttribute('aria-label', 'Edit event');
+    edit.onclick = function () { startEventEdit(ev); };
+    top.appendChild(info); top.appendChild(edit); top.appendChild(del);
     li.appendChild(top);
     var me = mapEmbed(ev.venue_address);
     if (me) li.appendChild(me);
