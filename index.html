@@ -4,17 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#14532d">
-<title>Soccer Practice Scheduler</title>
+<title>فريق الرشاد الفݣيݣي PA</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header>
-  <h1>⚽ Practice Scheduler</h1>
+  <h1>⚽ فريق الرشاد الفݣيݣي PA</h1>
   <nav>
     <button data-tab="practices" class="active">Practices</button>
     <button data-tab="players">Players</button>
     <button data-tab="avail">Availability</button>
     <button data-tab="teams">Teams</button>
+    <button data-tab="lineup">Lineup</button>
   </nav>
 </header>
 <main>
@@ -65,6 +66,37 @@
     <ul id="pool" class="list"></ul>
     <h3>Unavailable</h3>
     <ul id="out" class="list"></ul>
+  </section>
+
+  <section id="lineup" class="tab">
+    <div class="lu-bar">
+      <button id="lu-move" class="pick active">Move</button>
+      <button id="lu-pen" class="pick">Pen</button>
+    </div>
+    <div class="lu-bar">
+      <button id="lu-auto" class="pick">Auto-arrange</button>
+      <button id="lu-clear" class="pick">Clear board</button>
+      <span id="lu-count" class="lu-count">0 on</span>
+    </div>
+    <div id="field" class="field">
+      <svg class="lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="none" stroke="#fff" stroke-width="2" stroke-opacity=".85" vector-effect="non-scaling-stroke">
+          <rect x="3" y="3" width="94" height="144" vector-effect="non-scaling-stroke"/>
+          <line x1="3" y1="75" x2="97" y2="75" vector-effect="non-scaling-stroke"/>
+          <ellipse cx="50" cy="75" rx="13" ry="8.7" vector-effect="non-scaling-stroke"/>
+          <rect x="24" y="3" width="52" height="23" vector-effect="non-scaling-stroke"/>
+          <rect x="38" y="3" width="24" height="9" vector-effect="non-scaling-stroke"/>
+          <rect x="24" y="124" width="52" height="23" vector-effect="non-scaling-stroke"/>
+          <rect x="38" y="138" width="24" height="9" vector-effect="non-scaling-stroke"/>
+        </g>
+        <g fill="#fff" fill-opacity=".9"><rect x="43" y="0.6" width="14" height="2.4"/><rect x="43" y="147" width="14" height="2.4"/></g>
+      </svg>
+      <svg id="lu-draw" class="draw" viewBox="0 0 100 150" preserveAspectRatio="none"></svg>
+      <div id="lu-players"></div>
+      <div id="lu-hint" class="hint">Tap a player below, then tap where they play</div>
+    </div>
+    <p class="muted" id="lu-help"></p>
+    <div id="lu-roster" class="chips"></div>
   </section>
 </main>
 <script src="app.js"></script>

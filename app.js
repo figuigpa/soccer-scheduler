@@ -9,8 +9,9 @@
       var s = JSON.parse(localStorage.getItem(KEY));
       if (s && s.practices) return s;
     } catch (e) {}
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null };
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, lineup: { pos: {}, strokes: [] } };
   }
+  if (!state.lineup) state.lineup = { pos: {}, strokes: [] };
   function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function $(id) { return document.getElementById(id); }
@@ -101,6 +102,7 @@
         state.players = state.players.filter(function (x) { return x.id !== pl.id; });
         Object.keys(state.avail).forEach(function (k) { delete state.avail[k][pl.id]; });
         Object.keys(state.teams).forEach(function (k) { delete state.teams[k][pl.id]; });
+        delete state.lineup.pos[pl.id];
         save(); render();
       };
       li.appendChild(del); ul.appendChild(li);
@@ -206,6 +208,146 @@
     save(); renderTeams();
   };
 
-  function render() { renderPractices(); renderPlayers(); renderAvail(); renderTeams(); }
+  // Lineup board
+  var luMode = 'move', luSel = null, luDrag = null, luStroke = null;
+  var NS = 'http://www.w3.org/2000/svg';
+  function initials(n) {
+    var w = n.trim().split(/\s+/);
+    return (w.length > 1 ? w[0].charAt(0) + w[1].charAt(0) : w[0].slice(0, 2)).toUpperCase();
+  }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function fieldPt(e) {
+    var r = $('field').getBoundingClientRect();
+    return { x: clamp((e.clientX - r.left) / r.width * 100, 5, 95), y: clamp((e.clientY - r.top) / r.height * 100, 4, 96) };
+  }
+  function onField() { return state.players.filter(function (p) { return state.lineup.pos[p.id]; }); }
+  function pathPts(s) { return s.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' '); }
+  function drawStroke(s) {
+    var pl = document.createElementNS(NS, 'polyline');
+    pl.setAttribute('points', pathPts(s));
+    pl.setAttribute('class', 'stroke');
+    $('lu-draw').appendChild(pl);
+    return pl;
+  }
+  function renderLineup() {
+    var f = $('field'), lp = $('lu-players'), L = state.lineup;
+    f.classList.toggle('pen', luMode === 'pen');
+    $('lu-move').classList.toggle('active', luMode === 'move');
+    $('lu-pen').classList.toggle('active', luMode === 'pen');
+    lp.innerHTML = '';
+    var on = onField();
+    on.forEach(function (pl) {
+      var pos = L.pos[pl.id];
+      var d = el('div', 'pl' + (luSel === pl.id ? ' sel' : ''));
+      d.dataset.id = pl.id;
+      d.style.left = pos.x + '%'; d.style.top = pos.y + '%';
+      d.appendChild(el('span', 'jersey', pl.num || initials(pl.name)));
+      d.appendChild(el('span', 'nm', pl.name.split(/\s+/)[0]));
+      if (luSel === pl.id) {
+        var x = el('button', 'rm', '×');
+        x.setAttribute('aria-label', 'Remove ' + pl.name + ' from field');
+        x.onpointerdown = function (e) { e.stopPropagation(); };
+        x.onclick = function (e) { e.stopPropagation(); delete L.pos[pl.id]; luSel = null; save(); renderLineup(); };
+        d.appendChild(x);
+      }
+      lp.appendChild(d);
+    });
+    $('lu-draw').innerHTML = '';
+    L.strokes.forEach(drawStroke);
+    $('lu-count').textContent = on.length + ' on';
+    $('lu-hint').style.display = on.length || L.strokes.length ? 'none' : '';
+    var help = $('lu-help');
+    help.textContent = luMode === 'pen' ? 'Pen: draw lines on the field. Switch to Move to place players.'
+      : luSel ? 'Now tap a spot on the field (or drag a placed player).' : 'Tap a player, then tap the field. Tap a placed player to select or remove.';
+    var ro = $('lu-roster'); ro.innerHTML = '';
+    if (!state.players.length) ro.appendChild(el('p', 'muted', 'Add players in the Players tab first.'));
+    state.players.forEach(function (pl) {
+      var c = el('button', 'lchip' + (L.pos[pl.id] ? ' on' : '') + (luSel === pl.id ? ' sel' : ''));
+      c.appendChild(el('span', 'jersey', pl.num || initials(pl.name)));
+      c.appendChild(el('span', null, pl.name));
+      c.onclick = function () { luSel = luSel === pl.id ? null : pl.id; renderLineup(); };
+      ro.appendChild(c);
+    });
+  }
+  (function () {
+    var f = $('field');
+    f.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('.rm')) return;
+      var p = fieldPt(e);
+      if (luMode === 'pen') {
+        e.preventDefault();
+        f.setPointerCapture(e.pointerId);
+        luStroke = [[p.x, p.y * 1.5]];
+        luStroke.node = drawStroke(luStroke);
+        return;
+      }
+      var t = e.target.closest('.pl');
+      if (t) {
+        e.preventDefault();
+        f.setPointerCapture(e.pointerId);
+        luDrag = { id: t.dataset.id, moved: false, sx: e.clientX, sy: e.clientY, wasSel: luSel === t.dataset.id, node: t };
+        return;
+      }
+      if (luSel) {
+        state.lineup.pos[luSel] = { x: p.x, y: p.y };
+        luSel = null; save(); renderLineup();
+      }
+    });
+    f.addEventListener('pointermove', function (e) {
+      if (luStroke) {
+        var p = fieldPt(e);
+        luStroke.push([p.x, p.y * 1.5]);
+        luStroke.node.setAttribute('points', pathPts(luStroke));
+      } else if (luDrag) {
+        if (!luDrag.moved && Math.abs(e.clientX - luDrag.sx) + Math.abs(e.clientY - luDrag.sy) < 6) return;
+        luDrag.moved = true;
+        var q = fieldPt(e);
+        state.lineup.pos[luDrag.id] = { x: q.x, y: q.y };
+        luDrag.node.style.left = q.x + '%'; luDrag.node.style.top = q.y + '%';
+      }
+    });
+    function end() {
+      if (luStroke) {
+        if (luStroke.length > 1) state.lineup.strokes.push(luStroke.slice());
+        luStroke = null; save(); renderLineup();
+      } else if (luDrag) {
+        var d = luDrag; luDrag = null;
+        if (d.moved) { luSel = d.id; save(); }
+        else luSel = d.wasSel ? null : d.id;
+        renderLineup();
+      }
+    }
+    f.addEventListener('pointerup', end);
+    f.addEventListener('pointercancel', end);
+  })();
+  $('lu-move').onclick = function () { luMode = 'move'; renderLineup(); };
+  $('lu-pen').onclick = function () { luMode = 'pen'; luSel = null; renderLineup(); };
+  $('lu-clear').onclick = function () {
+    if ((onField().length || state.lineup.strokes.length) && !confirm('Clear all players and drawings from the board?')) return;
+    state.lineup = { pos: {}, strokes: [] }; luSel = null; save(); renderLineup();
+  };
+  $('lu-auto').onclick = function () {
+    var list = onField();
+    if (!list.length) {
+      var p = selected();
+      list = state.players.filter(function (pl) { return !p || getAvail(p.id, pl.id) !== 'no'; }).slice(0, 11);
+    }
+    var n = list.length; if (!n) return;
+    var rows, gk = n !== 6;
+    if (n === 6) rows = [1, 2, 3];
+    else {
+      var rest = n - 1, att = rest >= 7 ? 2 : rest >= 3 ? 1 : 0, r = rest - att, def = Math.ceil(r / 2), mid = r - def;
+      rows = [att, mid, def].filter(function (c) { return c > 0; });
+    }
+    if (gk) rows.push(1);
+    var pos = {}, i = 0;
+    rows.forEach(function (c, ri) {
+      var y = rows.length === 1 ? 50 : 20 + ri * (72 / (rows.length - 1));
+      for (var j = 0; j < c; j++) pos[list[i++].id] = { x: (j + 1) / (c + 1) * 100, y: y };
+    });
+    state.lineup.pos = pos; luSel = null; save(); renderLineup();
+  };
+
+  function render() { renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); }
   render();
 })();
