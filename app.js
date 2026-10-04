@@ -601,6 +601,40 @@
   document.querySelectorAll('.subnav button').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
   document.querySelectorAll('.bottombar button').forEach(function (b) { b.onclick = function () { showTab(lastSub[b.dataset.pane]); }; });
 
+
+  // ---------- quick-add FAB ----------
+  (function () {
+    var fab = $('qa-fab'), wrap = $('qa-sheet'), hideT = null;
+    function setOpen(on) {
+      clearTimeout(hideT);
+      fab.classList.toggle('open', on); fab.setAttribute('aria-expanded', on);
+      if (on) { wrap.hidden = false; void wrap.offsetWidth; wrap.classList.add('show'); }
+      else { wrap.classList.remove('show'); hideT = setTimeout(function () { wrap.hidden = true; }, 300); }
+    }
+    function openFold(tab, foldId) {
+      showTab(tab);
+      var f = $(foldId); if (!f) return;
+      f.open = true;
+      setTimeout(function () {
+        f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var i = f.querySelector('input:not([type=hidden]),select'); if (i) try { i.focus({ preventScroll: true }); } catch (e) { i.focus(); }
+      }, 60);
+    }
+    var actions = {
+      game: function () { openFold('practices', 'practice-fold'); },
+      event: function () { openFold('events', 'event-fold'); },
+      poll: function () { openFold('polls', 'poll-fold'); },
+      help: function () { openFold('events', 'help-fold'); },
+      photo: function () { showTab('album'); openAlbumSheet(); }
+    };
+    fab.onclick = function () { setOpen(!wrap.classList.contains('show')); };
+    $('qa-scrim').onclick = function () { setOpen(false); };
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && wrap.classList.contains('show')) setOpen(false); });
+    wrap.querySelectorAll('button[data-qa]').forEach(function (b) {
+      b.onclick = function () { setOpen(false); actions[b.dataset.qa](); };
+    });
+  })();
+
   // ---------- bring list (practices + events) ----------
   function bringList(owner) {
     var key = owner.practice_id ? 'practice_id' : 'event_id';

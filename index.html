@@ -275,6 +275,19 @@
 </nav>
 <div id="ptr" class="ptr" aria-hidden="true"><span class="ptr-i" data-ic="refresh"></span></div>
 <div id="viewer" class="viewer" hidden><button id="viewer-close" type="button" aria-label="Close" data-ic="x"></button><img id="viewer-img" alt=""><div id="viewer-cap" class="viewer-cap"></div><button id="viewer-del" type="button" class="viewer-del" hidden data-ic="trash">Delete</button></div>
+<button type="button" id="qa-fab" class="qa-fab" aria-label="Quick add" aria-haspopup="dialog" aria-expanded="false" data-ic="plus"></button>
+<div id="qa-sheet" class="qa-wrap" hidden>
+  <div class="qa-scrim" id="qa-scrim"></div>
+  <div class="qa-sheet" role="dialog" aria-modal="true" aria-label="Quick add">
+    <div class="qa-grab"></div>
+    <div class="qa-title">Quick add</div>
+    <button type="button" data-qa="game" data-ic="ball">New game</button>
+    <button type="button" data-qa="event" data-ic="gift">New gathering event</button>
+    <button type="button" data-qa="poll" data-ic="chart">New poll</button>
+    <button type="button" data-qa="photo" data-ic="camera">New photo album</button>
+    <button type="button" data-qa="help" data-ic="users">New help request</button>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>
