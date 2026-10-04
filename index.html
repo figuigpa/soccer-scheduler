@@ -129,12 +129,6 @@
 
 </div>
 <div id="gather" class="pane">
-<nav class="subnav" data-pane="gather">
-  <button data-tab="events" class="active" data-ic="gift">Events</button>
-  <button data-tab="polls" data-ic="chart">Polls</button>
-  <button data-tab="album" data-ic="camera">Album</button>
-</nav>
-
   <section id="events" class="tab active">
     <h2 class="page-title" data-ic="gift">Gathering</h2>
     <details class="card fold" id="event-fold"><summary data-ic="plus">New event</summary>
@@ -155,6 +149,8 @@
     <ul id="event-list" class="list"></ul>
   </section>
 
+</div>
+<div id="polls-pane" class="pane">
   <section id="polls" class="tab">
     <h2 class="page-title" data-ic="chart">Polls</h2>
     <details class="card fold" id="poll-fold"><summary data-ic="plus">New poll</summary>
@@ -168,8 +164,10 @@
     <ul id="poll-list" class="list"></ul>
   </section>
 
+</div>
+<div id="album-pane" class="pane">
   <section id="album" class="tab">
-    <h2 class="page-title" data-ic="camera">Album</h2>
+    <h2 class="page-title" data-ic="camera">Photos</h2>
     <div class="card">
       <input type="file" id="album-file" accept="image/*" multiple hidden>
       <button class="primary" type="button" id="album-add" data-ic="plus">Add photos</button>
@@ -216,9 +214,11 @@
 </div>
 </main>
 <nav class="bottombar" aria-label="Main">
-  <button data-pane="soccer" class="active"><span class="ic" data-ic="ball"></span><span class="lb">Soccer</span></button>
+  <button data-pane="soccer" class="active"><span class="ic" data-ic="ball"></span><span class="lb">Games</span></button>
   <button data-pane="gather"><span class="ic" data-ic="gift"></span><span class="lb">Gathering</span></button>
   <button data-pane="chat-pane"><span class="ic" data-ic="chat"><b id="chat-dot" class="dot" style="display:none">0</b></span><span class="lb">Chat</span></button>
+  <button data-pane="polls-pane"><span class="ic" data-ic="chart"></span><span class="lb">Polls</span></button>
+  <button data-pane="album-pane"><span class="ic" data-ic="camera"></span><span class="lb">Photos</span></button>
 </nav>
 <div id="viewer" class="viewer" hidden><button id="viewer-close" type="button" aria-label="Close" data-ic="x"></button><img id="viewer-img" alt=""><div id="viewer-cap" class="viewer-cap"></div><button id="viewer-del" type="button" class="viewer-del" hidden data-ic="trash">Delete</button></div>
 <script src="app.js"></script>

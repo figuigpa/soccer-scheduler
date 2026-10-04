@@ -412,9 +412,9 @@
   function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
   function teamable(a) { return a === 'maybe' || a === 'available'; }
 
-  // ---------- navigation: 2 panes (Soccer / Gathering), each with sub-sections ----------
-  var paneOf = { polls: 'gather', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'gather', chat: 'chat-pane' };
-  var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat' };
+  // ---------- navigation: 5 panes (Games / Gathering / Chat / Polls / Photos) ----------
+  var paneOf = { polls: 'polls-pane', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'album-pane', chat: 'chat-pane' };
+  var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat', 'polls-pane': 'polls', 'album-pane': 'album' };
   var curTab = 'practices', beforeChat = 'practices';
   function showTab(name) {
     var pane = paneOf[name] || 'soccer';
