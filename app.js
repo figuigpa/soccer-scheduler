@@ -67,6 +67,12 @@
       "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/>",
       "chevdown": "<polyline points=\"6 9 12 15 18 9\"/>",
       "chevright": "<polyline points=\"9 18 15 12 9 6\"/>",
+      "shuffle": "<polyline points=\"16 3 21 3 21 8\"/><line x1=\"4\" y1=\"20\" x2=\"21\" y2=\"3\"/><polyline points=\"21 16 21 21 16 21\"/><line x1=\"15\" y1=\"15\" x2=\"21\" y2=\"21\"/><line x1=\"4\" y1=\"4\" x2=\"9\" y2=\"9\"/>",
+      "expand": "<polyline points=\"15 3 21 3 21 9\"/><polyline points=\"9 21 3 21 3 15\"/><line x1=\"21\" y1=\"3\" x2=\"14\" y2=\"10\"/><line x1=\"3\" y1=\"21\" x2=\"10\" y2=\"14\"/>",
+      "shrink": "<polyline points=\"4 14 10 14 10 20\"/><polyline points=\"20 10 14 10 14 4\"/><line x1=\"14\" y1=\"10\" x2=\"21\" y2=\"3\"/><line x1=\"3\" y1=\"21\" x2=\"10\" y2=\"14\"/>",
+      "move": "<polyline points=\"5 9 2 12 5 15\"/><polyline points=\"9 5 12 2 15 5\"/><polyline points=\"15 19 12 22 9 19\"/><polyline points=\"19 9 22 12 19 15\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"22\"/>",
+      "layout": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><line x1=\"3\" y1=\"9\" x2=\"21\" y2=\"9\"/><line x1=\"9\" y1=\"21\" x2=\"9\" y2=\"9\"/>",
+      "refresh": "<polyline points=\"23 4 23 10 17 10\"/><path d=\"M20.49 15a9 9 0 1 1-2.12-9.36L23 10\"/>",
       "alert": "<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>"
   };
   function svg(n) { return '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
@@ -440,7 +446,12 @@
   var paneOf = { polls: 'polls-pane', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'album-pane', chat: 'chat-pane' };
   var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat', 'polls-pane': 'polls', 'album-pane': 'album' };
   var curTab = 'practices', beforeChat = 'practices';
+  var tabOrder = ['practices', 'players', 'avail', 'teams', 'lineup', 'events', 'chat', 'polls', 'album'];
+  var enterTimer = null;
   function showTab(name) {
+    if (typeof setLuFull === 'function' && name !== 'lineup') setLuFull(false);
+    var dir = tabOrder.indexOf(name) >= tabOrder.indexOf(curTab) ? 1 : -1;
+    document.documentElement.style.setProperty('--dir', dir);
     var pane = paneOf[name] || 'soccer';
     if (name !== 'chat') beforeChat = name;
     curTab = name; lastSub[pane] = name;
@@ -453,8 +464,16 @@
     if (name === 'chat') openChat();
     renderAll();
     window.scrollTo(0, 0);
+    markEntering(name);
     var b = document.querySelector('.subnav button[data-tab="' + name + '"]');
     if (b && b.scrollIntoView) b.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  function markEntering(name) {
+    var t = $(name); if (!t) return;
+    document.querySelectorAll('.tab.entering').forEach(function (x) { x.classList.remove('entering'); });
+    void t.offsetWidth; t.classList.add('entering');
+    clearTimeout(enterTimer);
+    enterTimer = setTimeout(function () { t.classList.remove('entering'); }, 900);
   }
   document.querySelectorAll('.subnav button').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
   document.querySelectorAll('.bottombar button').forEach(function (b) { b.onclick = function () { showTab(lastSub[b.dataset.pane]); }; });
@@ -673,40 +692,59 @@
     if (team) t[plid] = team; else delete t[plid];
     save(); renderTeams();
   }
+  function chipBtn(cls, name, ic, label) {
+    var b = el('button', 'pchip ' + cls); b.type = 'button';
+    b.appendChild(el('span', 'pav', initials(name)));
+    b.appendChild(el('span', 'pn', name));
+    if (label) b.appendChild(el('em', 'pq', label));
+    if (ic) b.insertAdjacentHTML('beforeend', '<span class="pi">' + svg(ic) + '</span>');
+    return b;
+  }
+  function setCount(id, n) {
+    var e = $(id);
+    if (e.textContent === String(n)) return;
+    e.textContent = n; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump');
+  }
   function renderTeams() {
     var p = fillSelect($('teams-practice'));
     ['red-list', 'yellow-list', 'pool', 'out'].forEach(function (id) { $(id).innerHTML = ''; });
     $('pick-red').classList.toggle('active', pickTeam === 'red');
     $('pick-yellow').classList.toggle('active', pickTeam === 'yellow');
-    var cnt = { red: 0, yellow: 0 };
+    $('team-seg').dataset.v = pickTeam;
+    var cnt = { red: 0, yellow: 0, pool: 0, out: 0 };
     if (p) {
       state.players.forEach(function (pl) {
         var a = getAvail(p.id, pl.id), t = teamOf(p.id, pl.id);
         if (!teamable(a)) {
-          $('out').appendChild((function () { var s = el('li'); if (a === 'injured') setIc(s, 'medical'); s.appendChild(document.createTextNode(pl.name + ' · ' + LABEL[a])); return s; })());
+          cnt.out++;
+          var o = chipBtn('out', pl.name, null, LABEL[a]); o.disabled = true;
+          $('out').appendChild(o);
         } else if (t) {
           cnt[t]++;
-          var li = el('li', null, pl.name + (a === 'maybe' ? ' ?' : ''));
-          li.title = 'Tap to unassign';
-          li.onclick = function () { setTeam(p, pl.id, null); };
-          $(t + '-list').appendChild(li);
+          var c = chipBtn(t, pl.name, 'x', a === 'maybe' ? 'maybe' : '');
+          c.setAttribute('aria-label', 'Remove ' + pl.name + ' from team ' + t);
+          c.onclick = function () { setTeam(p, pl.id, null); };
+          $(t + '-list').appendChild(c);
         } else {
-          var pi = el('li'); pi.appendChild(el('strong', null, pl.name));
-          if (a === 'maybe') pi.appendChild(el('span', 'q', 'maybe'));
+          cnt.pool++;
+          var pi = chipBtn('bench add-' + pickTeam, pl.name, 'plus', a === 'maybe' ? 'maybe' : '');
+          pi.setAttribute('aria-label', 'Add ' + pl.name + ' to team ' + pickTeam);
           pi.onclick = function () { setTeam(p, pl.id, pickTeam); };
           $('pool').appendChild(pi);
         }
       });
     }
-    $('red-n').textContent = cnt.red; $('yellow-n').textContent = cnt.yellow;
+    setCount('red-n', cnt.red); setCount('yellow-n', cnt.yellow); setCount('pool-n', cnt.pool); setCount('out-n', cnt.out);
     var diff = Math.abs(cnt.red - cnt.yellow), b = $('balance');
     b.className = 'balance' + (diff > 1 ? ' uneven' : '');
     b.textContent = diff > 1
       ? 'Uneven: ' + (cnt.red > cnt.yellow ? 'Red' : 'Yellow') + ' has ' + diff + ' more'
       : cnt.red + cnt.yellow ? 'Teams are balanced' : 'Tap players below to build teams';
     if (diff > 1) b.insertAdjacentHTML('afterbegin', svg('alert')); else if (cnt.red + cnt.yellow) b.insertAdjacentHTML('afterbegin', svg('check'));
-    if (!$('pool').children.length) $('pool').appendChild(el('li', 'muted', p ? 'No unassigned players.' : 'Create a game first.'));
-    if (!$('out').children.length) $('out').appendChild(el('li', 'muted', 'None'));
+    if (!cnt.red) $('red-list').appendChild(el('span', 'chip-empty', 'No players yet'));
+    if (!cnt.yellow) $('yellow-list').appendChild(el('span', 'chip-empty', 'No players yet'));
+    if (!cnt.pool) $('pool').appendChild(el('span', 'chip-empty', p ? 'Everyone is assigned' : 'Create a game first'));
+    if (!cnt.out) $('out').appendChild(el('span', 'chip-empty', 'None'));
   }
   $('pick-red').onclick = function () { pickTeam = 'red'; renderTeams(); };
   $('pick-yellow').onclick = function () { pickTeam = 'yellow'; renderTeams(); };
@@ -758,12 +796,14 @@
     f.classList.toggle('pen', luMode === 'pen');
     $('lu-move').classList.toggle('active', luMode === 'move');
     $('lu-pen').classList.toggle('active', luMode === 'pen');
-    lp.innerHTML = '';
     var pool = lineupPool(), on = onField();
+    var have = {};
+    Array.prototype.slice.call(lp.children).forEach(function (n) { have[n.dataset.id] = n; });
     on.forEach(function (pl) {
       var pos = L.pos[pl.id];
-      var d = el('div', 'pl ' + teamCls(p, pl) + (luSel === pl.id ? ' sel' : ''));
-      d.dataset.id = pl.id;
+      var d = have[pl.id], fresh = !d;
+      if (d) { delete have[pl.id]; d.innerHTML = ''; } else { d = el('div'); d.dataset.id = pl.id; }
+      d.className = 'pl ' + teamCls(p, pl) + (luSel === pl.id ? ' sel' : '') + (fresh ? ' pop' : '');
       d.style.left = pos.x + '%'; d.style.top = pos.y + '%';
       d.appendChild(el('span', 'jersey', initials(pl.name)));
       d.appendChild(el('span', 'nm', pl.name.split(/\s+/)[0]));
@@ -779,6 +819,7 @@
       }
       lp.appendChild(d);
     });
+    Object.keys(have).forEach(function (k) { have[k].remove(); });
     $('lu-draw').innerHTML = '';
     L.strokes.forEach(drawStroke);
     $('lu-count').textContent = on.length + ' on';
@@ -800,7 +841,7 @@
   (function () {
     var f = $('field');
     f.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('.rm')) return;
+      if (e.target.closest('.rm') || e.target.closest('.fs-btn')) return;
       var p = fieldPt(e);
       if (luMode === 'pen') {
         e.preventDefault();
@@ -813,6 +854,7 @@
       if (t) {
         e.preventDefault();
         f.setPointerCapture(e.pointerId);
+        t.classList.add('drag');
         luDrag = { id: t.dataset.id, moved: false, sx: e.clientX, sy: e.clientY, wasSel: luSel === t.dataset.id, node: t };
         return;
       }
@@ -839,7 +881,7 @@
         if (luStroke.length > 1) state.lineup.strokes.push(luStroke.slice());
         luStroke = null; save(); renderLineup();
       } else if (luDrag) {
-        var d = luDrag; luDrag = null;
+        var d = luDrag; luDrag = null; d.node.classList.remove('drag');
         if (d.moved) { luSel = d.id; savePos(d.id); }
         else luSel = d.wasSel ? null : d.id;
         renderLineup();
@@ -848,6 +890,15 @@
     f.addEventListener('pointerup', end);
     f.addEventListener('pointercancel', end);
   })();
+  function setLuFull(on) {
+    $('lineup').classList.toggle('full', on);
+    document.body.classList.toggle('lu-full', on);
+    var b = $('lu-full'); b.innerHTML = svg(on ? 'shrink' : 'expand');
+    b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen field');
+  }
+  $('lu-full').onclick = function () { setLuFull(!$('lineup').classList.contains('full')); };
+  $('lu-full-x').onclick = function () { setLuFull(false); };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('lineup').classList.contains('full')) setLuFull(false); });
   $('lu-move').onclick = function () { luMode = 'move'; renderLineup(); };
   $('lu-pen').onclick = function () { luMode = 'pen'; luSel = null; renderLineup(); };
   $('lu-clear').onclick = function () {
@@ -1834,6 +1885,33 @@
   }
   setSync(sb ? (navigator.onLine ? 'busy' : 'offline') : 'local');
   renderAll();
+  markEntering(curTab);
+  // pull-to-refresh (touch, only at top of page, not in chat / full-screen field)
+  (function () {
+    var ptr = $('ptr'), y0 = null, d = 0, busy = false;
+    function reset() { ptr.style.transform = ''; ptr.classList.remove('pulling', 'ready'); }
+    document.addEventListener('touchstart', function (e) {
+      var inField = e.target.closest && e.target.closest('#field');
+      y0 = (window.scrollY <= 0 && !busy && curTab !== 'chat' && !inField && !document.body.classList.contains('lu-full') && e.touches.length === 1) ? e.touches[0].clientY : null; d = 0;
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (y0 == null) return;
+      d = e.touches[0].clientY - y0;
+      if (d <= 0) { reset(); return; }
+      var s = Math.min(d * 0.5, 70);
+      ptr.classList.add('pulling'); ptr.classList.toggle('ready', s >= 56);
+      ptr.style.transform = 'translate(-50%,' + s + 'px) rotate(' + (s * 4) + 'deg)';
+    }, { passive: true });
+    document.addEventListener('touchend', function () {
+      if (y0 == null) return;
+      var go = d * 0.5 >= 56; y0 = null;
+      if (!go) { reset(); return; }
+      busy = true; ptr.classList.add('spin'); ptr.style.transform = 'translate(-50%,56px)';
+      Promise.resolve(sb && navigator.onLine ? flush() : null).catch(function () {}).then(function () {
+        setTimeout(function () { busy = false; ptr.classList.remove('spin'); reset(); }, 450);
+      });
+    }, { passive: true });
+  })();
   subscribe();
   flush();
 })();

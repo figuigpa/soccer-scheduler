@@ -78,34 +78,47 @@
 
   <section id="teams" class="tab">
     <select id="teams-practice" class="practice-select"></select>
-    <div class="picker">
-      <span>Tap adds to:</span>
-      <button id="pick-red" class="pick red active">Red</button>
-      <button id="pick-yellow" class="pick yellow">Yellow</button>
-      <button id="auto-balance" class="pick">Auto-balance</button>
+    <div class="tm-ctl">
+      <div class="seg-label">Tap a player to add to</div>
+      <div class="seg" id="team-seg" data-v="red" role="group" aria-label="Team to add players to">
+        <i class="seg-ind"></i>
+        <button type="button" id="pick-red" class="seg-b red active"><span class="sd"></span>Red</button>
+        <button type="button" id="pick-yellow" class="seg-b yellow"><span class="sd"></span>Yellow</button>
+      </div>
+      <button type="button" id="auto-balance" class="ab-btn" data-ic="shuffle">Auto-balance teams</button>
     </div>
     <div id="balance" class="balance"></div>
-    <div class="columns">
-      <div class="col red"><h3>TEAM RED <span id="red-n">0</span></h3><ul id="red-list"></ul></div>
-      <div class="col yellow"><h3>TEAM YELLOW <span id="yellow-n">0</span></h3><ul id="yellow-list"></ul></div>
+    <div class="tcard red">
+      <div class="th"><span class="tdot"></span><h3>Red</h3><span class="cnt" id="red-n">0</span></div>
+      <div id="red-list" class="chipwrap"></div>
     </div>
-    <h3>Available players</h3>
-    <ul id="pool" class="list"></ul>
-    <h3>Unavailable / injured</h3>
-    <ul id="out" class="list"></ul>
+    <div class="tcard yellow">
+      <div class="th"><span class="tdot"></span><h3>Yellow</h3><span class="cnt" id="yellow-n">0</span></div>
+      <div id="yellow-list" class="chipwrap"></div>
+    </div>
+    <div class="tcard bench">
+      <div class="th"><span class="tdot" data-ic="users"></span><h3>Bench</h3><span class="cnt" id="pool-n">0</span></div>
+      <div id="pool" class="chipwrap"></div>
+    </div>
+    <div class="tcard out">
+      <div class="th"><span class="tdot" data-ic="ban"></span><h3>Unavailable / injured</h3><span class="cnt" id="out-n">0</span></div>
+      <div id="out" class="chipwrap"></div>
+    </div>
   </section>
 
   <section id="lineup" class="tab">
     <select id="lineup-practice" class="practice-select"></select>
-    <div class="lu-bar">
-      <button id="lu-move" class="pick active">Move</button>
-      <button id="lu-pen" class="pick">Pen</button>
+    <div class="lu-top">
+      <div class="lu-bar lu-modes">
+        <button id="lu-move" class="pick active" data-ic="move">Move</button>
+        <button id="lu-pen" class="pick" data-ic="edit">Pen</button>
+        <button id="lu-auto" class="pick" data-ic="layout">Auto-arrange</button>
+        <button id="lu-clear" class="pick" data-ic="trash">Clear</button>
+        <span id="lu-count" class="lu-count">0 on</span>
+        <button id="lu-full-x" class="pick lu-exit" type="button" aria-label="Exit full screen" data-ic="shrink"></button>
+      </div>
     </div>
-    <div class="lu-bar">
-      <button id="lu-auto" class="pick">Auto-arrange</button>
-      <button id="lu-clear" class="pick">Clear board</button>
-      <span id="lu-count" class="lu-count">0 on</span>
-    </div>
+    <div class="field-wrap">
     <div id="field" class="field">
       <svg class="lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
         <g fill="none" stroke="#fff" stroke-width="2" stroke-opacity=".85" vector-effect="non-scaling-stroke">
@@ -122,6 +135,8 @@
       <svg id="lu-draw" class="draw" viewBox="0 0 100 150" preserveAspectRatio="none"></svg>
       <div id="lu-players"></div>
       <div id="lu-hint" class="hint">Tap an available player below, then tap where they play</div>
+    </div>
+    <button type="button" id="lu-full" class="fs-btn" aria-label="Full screen field" data-ic="expand"></button>
     </div>
     <p class="muted" id="lu-help"></p>
     <div id="lu-roster" class="chips"></div>
@@ -223,6 +238,7 @@
   <button data-pane="polls-pane"><span class="ic" data-ic="chart"></span><span class="lb">Polls</span></button>
   <button data-pane="album-pane"><span class="ic" data-ic="camera"></span><span class="lb">Photos</span></button>
 </nav>
+<div id="ptr" class="ptr" aria-hidden="true"><span class="ptr-i" data-ic="refresh"></span></div>
 <div id="viewer" class="viewer" hidden><button id="viewer-close" type="button" aria-label="Close" data-ic="x"></button><img id="viewer-img" alt=""><div id="viewer-cap" class="viewer-cap"></div><button id="viewer-del" type="button" class="viewer-del" hidden data-ic="trash">Delete</button></div>
 <script src="app.js"></script>
 </body>
