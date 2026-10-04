@@ -505,6 +505,8 @@
     }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, function (p) {
       if (p.old && p.old.id) removeChat(p.old.id);
     }).subscribe();
+    typingCh = sb.channel('chat_typing', { config: { presence: { key: uid() } } });
+    typingCh.on('presence', { event: 'sync' }, renderTyping).subscribe();
     sb.channel('albums-live').on('postgres_changes', { event: '*', schema: 'public', table: 'albums' }, function (p) {
       var r = p.eventType === 'DELETE' ? p.old : p.new;
       if (!r || !r.id) return;
@@ -1906,7 +1908,7 @@
     if (!body) return;
     var name = myName() || await askName('Your name for chat');
     if (!name) return;
-    inp.value = ''; syncSendBtn();
+    inp.value = ''; syncSendBtn(); setTyping(false);
     if (replyTo) body = '[re]' + encodeURIComponent(replyTo.id) + '|' + encodeURIComponent(replyTo.sender) + '|' + encodeURIComponent(snippetOf(replyTo.body)) + '\n' + body;
     setReply(null);
     var m = { id: uid(), sender: name, body: body, created_at: nowIso() };
@@ -2247,6 +2249,36 @@
     if (b.dataset.mode !== (has ? 'send' : 'mic')) { b.dataset.mode = has ? 'send' : 'mic'; setIc(b, has ? 'send' : 'mic'); b.setAttribute('aria-label', has ? 'Send' : 'Record voice message'); }
   }
   $('chat-input').addEventListener('input', syncSendBtn);
+
+  // typing indicator (Supabase Realtime Presence on 'chat_typing')
+  var typingCh = null, typingOn = false, typingTimer = null;
+  function setTyping(on) {
+    clearTimeout(typingTimer);
+    if (on) typingTimer = setTimeout(function () { setTyping(false); }, 3000);
+    if (!typingCh || on === typingOn) return;
+    typingOn = on;
+    try {
+      if (on) typingCh.track({ name: myName(), at: Date.now() });
+      else typingCh.untrack();
+    } catch (e) {}
+  }
+  function renderTyping() {
+    var box = $('chat-typing');
+    if (!box || !typingCh) return;
+    var st = typingCh.presenceState(), me = myName(), names = [];
+    Object.keys(st).forEach(function (k) {
+      st[k].forEach(function (p) { if (p.name && p.name !== me && names.indexOf(p.name) < 0) names.push(p.name); });
+    });
+    if (!names.length) { box.hidden = true; return; }
+    var t = names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : names.length + ' people are typing';
+    box.innerHTML = '';
+    box.appendChild(document.createTextNode(t));
+    var d = document.createElement('span'); d.className = 'dots'; d.innerHTML = '<i></i><i></i><i></i>';
+    box.appendChild(d);
+    box.hidden = false;
+  }
+  $('chat-input').addEventListener('input', function () { setTyping(!!$('chat-input').value.trim()); });
+  $('chat-input').addEventListener('blur', function () { setTyping(false); });
 
   // voice playback
   var curAudio = null, curBtn = null;
