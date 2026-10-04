@@ -2476,6 +2476,7 @@
   // Admins manage PINs; until the first admin exists, any logged-in member can.
   function canManagePins() { return !!myName() && (!state.admins.length || iAmAdmin()); }
   function unlock(p) {
+    console.log('[gate] unlock ' + p.name);
     if (lsSet(PIN_KEY, p.pin) && lsGet(PIN_KEY) === p.pin) console.log('[gate] PIN saved for this device');
     else console.warn('[gate] PIN could not be saved; you will be asked again after a refresh');
     lsSet(NAME_KEY, p.name);
@@ -2530,10 +2531,12 @@
   async function submitPin() {
     if (tryingPin) return;
     var pin = pinValue();
+    console.log('[gate] submitPin, digits=' + pin.length + ', players loaded=' + state.players.length);
     if (pin.length < 4) { $('gate-err').textContent = 'Enter all 4 digits.'; return; }
     tryingPin = true; $('gate-go').disabled = true;
     var r = await verifyPin(pin);
     tryingPin = false; $('gate-go').disabled = false;
+    console.log('[gate] verify result:', r.p ? 'match ' + r.p.name : r.err);
     if (r.p) {
       $('pin-boxes').classList.add('ok');
       $('gate').classList.add('leaving');
@@ -2547,6 +2550,7 @@
   }
   pinBoxEls.forEach(function (box, i) {
     box.addEventListener('input', function () {
+      console.log('[gate] input box ' + i + ' value=' + (box.value ? '*' : ''));
       var d = box.value.replace(/\D/g, '');
       $('gate-err').textContent = ''; $('pin-boxes').classList.remove('bad');
       if (d.length > 1) { // paste / autofill of several digits: spread across boxes
@@ -2567,7 +2571,7 @@
     });
     box.addEventListener('focus', function () { box.select(); });
   });
-  $('gate-form').onsubmit = function (e) { e.preventDefault(); submitPin(); };
+  $('gate-form').onsubmit = function (e) { e.preventDefault(); console.log('[gate] form submit'); submitPin(); };
 
   // First-run bootstrap: while nobody has a PIN, the first person picks their name, sets a PIN and becomes admin.
   var SHOW_SETUP_UI = false; // first-run admin setup UI is hidden on the landing page; logic kept in case it's needed
