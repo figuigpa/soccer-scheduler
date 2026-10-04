@@ -127,3 +127,11 @@ alter table chat_admins enable row level security;
 drop policy if exists "open" on chat_admins;
 create policy "open" on chat_admins for all using (true) with check (true);
 alter publication supabase_realtime add table chat_admins;
+
+-- Team picture
+alter table team_settings add column if not exists picture_url text;
+insert into storage.buckets (id, name, public) values ('team-assets', 'team-assets', true) on conflict (id) do update set public = true;
+drop policy if exists "team-assets read" on storage.objects;
+drop policy if exists "team-assets upload" on storage.objects;
+create policy "team-assets read" on storage.objects for select using (bucket_id = 'team-assets');
+create policy "team-assets upload" on storage.objects for insert with check (bucket_id = 'team-assets');

@@ -147,6 +147,75 @@
     setTeamName(n);
     push({ t: 'team_settings', a: 'up', c: 'id', r: { id: 1, name: n } });
   }
+  var PIC_KEY = 'rf.teamPic';
+  function teamPic() { return localStorage.getItem(PIC_KEY) || ''; }
+  function renderTeamPic() {
+    var c = document.querySelector('.crest'), u = teamPic();
+    if (!c) return;
+    c.textContent = '';
+    c.classList.toggle('has-pic', !!u);
+    if (u) {
+      var im = document.createElement('img');
+      im.alt = '';
+      im.onerror = function () { c.classList.remove('has-pic'); c.textContent = '⚽'; };
+      im.src = u;
+      c.appendChild(im);
+    } else c.textContent = '⚽';
+  }
+  function setTeamPic(u) {
+    if (!u || u === teamPic()) return;
+    try { localStorage.setItem(PIC_KEY, u); } catch (e) {}
+    renderTeamPic();
+  }
+  function resizeImage(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), im = new Image();
+      im.onload = function () {
+        var s = Math.min(1, 512 / Math.max(im.width, im.height));
+        var w = Math.max(1, Math.round(im.width * s)), h = Math.max(1, Math.round(im.height * s));
+        var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        var cx = cv.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+        cx.drawImage(im, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        cv.toBlob(function (b) { b ? res(b) : rej(new Error('encode')); }, 'image/jpeg', 0.8);
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); rej(new Error('Not a readable image')); };
+      im.src = url;
+    });
+  }
+  async function changeTeamPic(file) {
+    if (!file) return;
+    if (!sb) { alert('Team picture needs a connection to the server.'); return; }
+    try {
+      var blob = await resizeImage(file);
+      var path = 'team-' + Date.now() + '.jpg';
+      var up = await sb.storage.from('team-assets').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+      if (up.error) throw up.error;
+      var url = sb.storage.from('team-assets').getPublicUrl(path).data.publicUrl;
+      setTeamPic(url);
+      push({ t: 'team_settings', a: 'up', c: 'id', r: { id: 1, name: teamName(), picture_url: url } });
+    } catch (e) {
+      alert('Could not upload picture: ' + (e && e.message ? e.message : e));
+    }
+  }
+  function teamSettings() {
+    var old = $('teamMenu'); if (old) old.remove();
+    var ov = el('div', 'tm-overlay'); ov.id = 'teamMenu';
+    var box = el('div', 'tm-box');
+    var b1 = el('button', 'tm-btn', 'Change team name');
+    var b2 = el('button', 'tm-btn', 'Change team picture');
+    var b3 = el('button', 'tm-btn tm-cancel', 'Cancel');
+    var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true;
+    b1.type = b2.type = b3.type = 'button';
+    b1.onclick = function () { ov.remove(); editTeamName(); };
+    b2.onclick = function () { fi.click(); };
+    fi.onchange = function () { var f = fi.files && fi.files[0]; ov.remove(); changeTeamPic(f); };
+    b3.onclick = function () { ov.remove(); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    box.appendChild(b1); box.appendChild(b2); box.appendChild(b3); box.appendChild(fi);
+    ov.appendChild(box); document.body.appendChild(ov);
+  }
   function push(op) { state.outbox.push(op); save(); flush(); }
   function exec(op) {
     var q = sb.from(op.t);
@@ -197,7 +266,7 @@
     var ad = await sb.from('chat_admins').select('*');
     var adminsOk = !ad.error;
     var ts = await sb.from('team_settings').select('*').eq('id', 1);
-    if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) setTeamName(ts.data[0].name);
+    if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
     state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name }; });
@@ -232,6 +301,7 @@
     if (!sb) return;
     sb.channel('team-live').on('postgres_changes', { event: '*', schema: 'public', table: 'team_settings' }, function (p) {
       if (p.new && p.new.name) setTeamName(p.new.name);
+      if (p.new && p.new.picture_url) setTeamPic(p.new.picture_url);
     }).subscribe();
     sb.channel('chat-live').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) {
       addChat(chatRow(p.new), true);
@@ -1083,7 +1153,8 @@
     renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat(); renderMembers();
   }
   renderTeamName();
-  if ($('teamEdit')) $('teamEdit').addEventListener('click', editTeamName);
+  renderTeamPic();
+  if ($('teamEdit')) $('teamEdit').addEventListener('click', teamSettings);
   window.addEventListener('online', flush);
   window.addEventListener('offline', function () { setSync('offline'); });
   document.addEventListener('visibilitychange', function () {
