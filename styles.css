@@ -218,3 +218,6 @@ body.on-chat{overflow:hidden;padding-bottom:0}
 .rec-bar button{margin-left:auto}
 .rec-dot{width:10px;height:10px;border-radius:50%;background:#fff;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.2}}
+
+.tm-storage{font-size:.85rem;color:#555;text-align:center;padding:4px 2px 0}
+.tm-btn:disabled{opacity:.5}

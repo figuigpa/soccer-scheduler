@@ -213,7 +213,18 @@
     fi.onchange = function () { var f = fi.files && fi.files[0]; ov.remove(); changeTeamPic(f); };
     b3.onclick = function () { ov.remove(); };
     ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
-    box.appendChild(b1); box.appendChild(b2); box.appendChild(b3); box.appendChild(fi);
+    var sInfo = el('div', 'tm-storage', 'Storage: calculating…'), b4 = el('button', 'tm-btn', 'Clear cached media');
+    b4.type = 'button';
+    function showUsage() {
+      mediaUsage().then(function (u) { sInfo.textContent = 'Storage: ' + fmtBytes(u.bytes) + ' of media on this device (' + u.n + ' file' + (u.n === 1 ? '' : 's') + ')'; b4.disabled = !u.n; })
+        .catch(function () { sInfo.textContent = 'Storage: local media unavailable'; b4.disabled = true; });
+    }
+    b4.onclick = function () {
+      if (!confirm('Clear cached photos and voice messages from this device? They will re-download when viewed.')) return;
+      mediaClear().then(showUsage).catch(function () { sInfo.textContent = 'Could not clear cache'; });
+    };
+    showUsage();
+    box.appendChild(b1); box.appendChild(b2); box.appendChild(sInfo); box.appendChild(b4); box.appendChild(b3); box.appendChild(fi);
     ov.appendChild(box); document.body.appendChild(ov);
   }
   function push(op) { state.outbox.push(op); save(); flush(); }
@@ -1127,8 +1138,68 @@
     urlCache[key] = { url: url, exp: Date.now() + 12 * 3600 * 1000 };
     return url;
   }
+  // ---------- Local-first media (IndexedDB media_store, keyed by B2 object key) ----------
+  var mdb = null;
+  function mediaDb() {
+    if (mdb) return mdb;
+    mdb = new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+      var rq = indexedDB.open('rf-media', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('media_store'); };
+      rq.onsuccess = function () { resolve(rq.result); };
+      rq.onerror = function () { reject(rq.error); };
+    });
+    mdb.catch(function () { mdb = null; });
+    return mdb;
+  }
+  function mediaTx(mode, fn) {
+    return mediaDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('media_store', mode), out = fn(tx.objectStore('media_store'));
+        tx.oncomplete = function () { resolve(out && out.result); };
+        tx.onerror = tx.onabort = function () { reject(tx.error); };
+      });
+    });
+  }
+  function mediaGet(key) { return mediaTx('readonly', function (st) { return st.get(key); }); }
+  function mediaPut(key, blob) { return mediaTx('readwrite', function (st) { return st.put(blob, key); }); }
+  function mediaUsage() {
+    return mediaDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var n = 0, bytes = 0, rq = db.transaction('media_store', 'readonly').objectStore('media_store').openCursor();
+        rq.onsuccess = function () {
+          var c = rq.result;
+          if (c) { n++; bytes += (c.value && c.value.size) || 0; c.continue(); } else resolve({ n: n, bytes: bytes });
+        };
+        rq.onerror = function () { reject(rq.error); };
+      });
+    });
+  }
+  function mediaClear() {
+    objUrls = {}; inflight = {};
+    return mediaTx('readwrite', function (st) { return st.clear(); });
+  }
+  var objUrls = {}, inflight = {};
+  // Local blob URL for a key: IndexedDB first; otherwise download once from B2, store, then serve locally.
+  function mediaUrl(key) {
+    if (objUrls[key]) return Promise.resolve(objUrls[key]);
+    if (inflight[key]) return inflight[key];
+    var p = mediaGet(key).catch(function () { return null; }).then(function (blob) {
+      if (blob) return blob;
+      return getUrl(key).then(function (u) { return fetch(u); }).then(function (r) {
+        if (!r.ok) throw new Error('download failed (' + r.status + ')');
+        return r.blob();
+      }).then(function (b) { mediaPut(key, b).catch(function () {}); return b; });
+    }).then(function (blob) {
+      return (objUrls[key] = URL.createObjectURL(blob));
+    }).catch(function () { return getUrl(key); }) // offline-cache/CORS failure: stream remotely as before
+      .then(function (u) { delete inflight[key]; return u; }, function (e) { delete inflight[key]; throw e; });
+    inflight[key] = p;
+    return p;
+  }
+  function fmtBytes(b) { return b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; }
   function loadInto(key, node) {
-    getUrl(key).then(function (u) {
+    mediaUrl(key).then(function (u) {
       if (node.tagName === 'IMG' || node.tagName === 'AUDIO') node.src = u; else node.style.backgroundImage = 'url("' + u + '")';
     }).catch(function () {});
   }
@@ -1199,6 +1270,7 @@
       st.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
       try {
         var blob = await compress(files[i], 1600, 0.85), key = 'album/' + Date.now() + '-' + rnd() + '.jpg';
+        await mediaPut(key, blob).catch(function () {});
         await b2Put(key, blob, 'image/jpeg');
         var ph = { id: uid(), url: key, thumb_url: key, uploader: name, caption: '', created_at: nowIso() };
         state.photos.push(ph); save(); push({ t: 'photos', a: 'up', r: ph }); ok++;
@@ -1215,6 +1287,7 @@
     var btn = $('chat-photo'); btn.disabled = true; btn.textContent = '⏳';
     try {
       var blob = await compress(f, 1280, 0.8), key = 'chat/' + Date.now() + '-' + rnd() + '.jpg';
+      await mediaPut(key, blob).catch(function () {});
       await b2Put(key, blob, 'image/jpeg');
       sendMedia('[img]' + key);
     } catch (e) { alert('Could not send picture: ' + (e && e.message ? e.message : e)); }
@@ -1240,7 +1313,7 @@
         if (d) fill.style.width = Math.min(100, au.currentTime / d * 100) + '%';
         dur.textContent = fmtDur(au.paused && !au.currentTime ? d : au.currentTime);
       };
-      return getUrl(md.key).then(function (u) { au.src = u; });
+      return mediaUrl(md.key).then(function (u) { au.src = u; });
     }
     function toggle(e) {
       e.stopPropagation();
@@ -1293,7 +1366,9 @@
       var btn = $('chat-mic'); btn.disabled = true; btn.textContent = '⏳';
       try {
         var key = 'voice/' + Date.now() + '.' + ext;
-        await b2Put(key, new Blob(r.chunks, { type: type }), type);
+        var vblob = new Blob(r.chunks, { type: type });
+        await mediaPut(key, vblob).catch(function () {});
+        await b2Put(key, vblob, type);
         sendMedia('[voice]' + key + '|' + Math.round(secs));
       } catch (e) { alert('Could not send voice message: ' + (e && e.message ? e.message : e)); }
       btn.disabled = false; btn.textContent = '🎤';
