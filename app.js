@@ -140,7 +140,7 @@
     var map = {};
     function id(x) { if (!map[x]) map[x] = isUuid(x) ? x : uid(); return map[x]; }
     var ST = { yes: 'available', no: 'unavailable', maybe: 'maybe' };
-    s.players = (o.players || []).map(function (p) { return { id: id(p.id), name: p.name }; });
+    s.players = (o.players || []).map(function (p) { return { id: id(p.id), name: p.name, category: 'adult' }; });
     s.practices = o.practices.map(function (p) {
       return { id: id(p.id), date: p.date, time: p.time, location: p.place || '', field_address: '', field_map_url: '', notes: '' };
     });
@@ -156,7 +156,7 @@
     var L = o.lineup || { pos: {}, strokes: [] };
     Object.keys(L.pos || {}).forEach(function (pl) { s.lineup.pos[id(pl)] = L.pos[pl]; });
     s.lineup.strokes = L.strokes || [];
-    s.players.forEach(function (p) { s.outbox.push({ t: 'players', a: 'up', r: { id: p.id, name: p.name, created_at: nowIso() } }); });
+    s.players.forEach(function (p) { s.outbox.push({ t: 'players', a: 'up', r: { id: p.id, name: p.name, category: 'adult', created_at: nowIso() } }); });
     s.practices.forEach(function (p) { s.outbox.push({ t: 'practices', a: 'up', r: practiceRow(p) }); });
     Object.keys(s.avail).forEach(function (pid) {
       Object.keys(s.avail[pid]).forEach(function (pl) { s.outbox.push(availOp(pid, pl, s.avail[pid][pl])); });
@@ -352,7 +352,7 @@
     if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
-    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name }; });
+    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult' }; });
     state.practices = d[1].map(function (r) {
       return { id: r.id, date: r.date, time: (r.time || '').slice(0, 5), location: r.location || '', field_address: r.field_address || '',
         field_map_url: r.field_map_url || '', notes: r.notes || '', created_at: r.created_at };
@@ -618,9 +618,9 @@
     e.preventDefault();
     var name = $('player-name').value.trim();
     if (!name) return;
-    var p = { id: uid(), name: name };
+    var p = { id: uid(), name: name, category: $('player-cat').value === 'kid' ? 'kid' : 'adult' };
     state.players.push(p);
-    push({ t: 'players', a: 'up', r: { id: p.id, name: name, created_at: nowIso() } });
+    push({ t: 'players', a: 'up', r: { id: p.id, name: name, category: p.category, created_at: nowIso() } });
     e.target.reset(); renderAll();
   };
   function renderPlayers() {
@@ -628,6 +628,16 @@
     $('player-count').textContent = state.players.length + ' player' + (state.players.length === 1 ? '' : 's');
     state.players.forEach(function (pl) {
       var li = el('li'); li.appendChild(el('strong', null, pl.name));
+      var kid = pl.category === 'kid';
+      var tag = el('button', 'cat-tag' + (kid ? ' kid' : ''), kid ? 'Kid' : 'Adult');
+      tag.type = 'button';
+      tag.setAttribute('aria-label', pl.name + ' is ' + (kid ? 'a kid' : 'an adult') + '. Tap to change.');
+      tag.onclick = function () {
+        pl.category = kid ? 'adult' : 'kid';
+        push({ t: 'players', a: 'up', r: { id: pl.id, name: pl.name, category: pl.category, created_at: nowIso() } });
+        renderAll();
+      };
+      li.appendChild(tag);
       var del = ei('button', 'del', 'trash');
       del.setAttribute('aria-label', 'Remove ' + pl.name);
       del.onclick = function () {
@@ -1824,14 +1834,15 @@
     }, 250);
   };
   function memberNames() {
-    var seen = {}, out = [];
+    var seen = {}, out = [], kids = {};
+    state.players.forEach(function (p) { if (p.category === 'kid') kids[p.name.trim().toLowerCase()] = 1; });
     function add(n) {
       n = (n || '').trim(); var k = n.toLowerCase();
-      if (n && !seen[k]) { seen[k] = 1; out.push(n); }
+      if (n && !kids[k] && !seen[k]) { seen[k] = 1; out.push(n); }
     }
     state.admins.forEach(add);
     add(myName());
-    state.players.forEach(function (p) { add(p.name); });
+    state.players.forEach(function (p) { if (p.category !== 'kid') add(p.name); });
     state.chat.forEach(function (m) { add(m.sender); });
     return out.sort(function (x, y) {
       return (isAdmin(y) - isAdmin(x)) || x.toLowerCase().localeCompare(y.toLowerCase());

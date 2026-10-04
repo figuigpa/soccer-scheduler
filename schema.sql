@@ -6,6 +6,7 @@ create table if not exists players (
   name text not null,
   created_at timestamptz default now()
 );
+alter table players add column if not exists category text default 'adult' check (category in ('adult','kid'));
 create table if not exists practices (
   id uuid primary key default gen_random_uuid(),
   date date not null,
