@@ -2336,9 +2336,10 @@
   $('gate-form').onsubmit = function (e) { e.preventDefault(); submitPin(); };
 
   // First-run bootstrap: while nobody has a PIN, the first person picks their name, sets a PIN and becomes admin.
+  var SHOW_SETUP_UI = false; // first-run admin setup UI is hidden on the landing page; logic kept in case it's needed
   function noPinsYet() { return !state.players.some(function (p) { return p.pin; }); }
   function gateMode() {
-    var setup = syncState === 'synced' && noPinsYet();
+    var setup = SHOW_SETUP_UI && syncState === 'synced' && noPinsYet();
     $('gate-setup').hidden = !setup; $('gate-form').hidden = setup;
     $('gate-sub').textContent = setup ? 'Welcome! Set up your admin PIN' : 'Enter your 4-digit invitation PIN';
     if (!setup) return;
