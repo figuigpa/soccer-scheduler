@@ -1,12 +1,12 @@
 {
-  "name": "فريق الرشاد الفݣيݣي PA",
-  "short_name": "الرشاد PA",
+  "name": "Figuig PA",
+  "short_name": "Figuig PA",
   "description": "Team schedule, availability, lineup, events and chat",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "lang": "ar",
+  "lang": "en",
   "background_color": "#14532d",
   "theme_color": "#14532d",
   "icons": [

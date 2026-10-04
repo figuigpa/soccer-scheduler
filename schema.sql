@@ -107,3 +107,13 @@ begin
     execute format('create policy "open" on %I for all using (true) with check (true)', t);
   end loop;
 end $$;
+
+create table if not exists team_settings (
+  id int primary key check (id = 1),
+  name text not null
+);
+insert into team_settings (id, name) values (1, 'Figuig PA') on conflict (id) do nothing;
+alter table team_settings enable row level security;
+drop policy if exists "open" on team_settings;
+create policy "open" on team_settings for all using (true) with check (true);
+alter publication supabase_realtime add table team_settings;

@@ -6,6 +6,7 @@
   var sb = null;
   try { if (window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY); } catch (e) { sb = null; }
 
+  var TEAM_KEY = 'rf.teamName', DEFAULT_TEAM = 'Figuig PA';
   var pickTeam = 'red';
   var openBring = {};
   var state = load();
@@ -123,6 +124,29 @@
     var T = { synced: ['● Synced', 'ok'], offline: ['● Offline – saved locally', 'off'], setup: ['● Setup needed', 'warn'], local: ['● Local only', 'off'], busy: ['● Syncing…', 'ok'] };
     b.textContent = T[s][0]; b.className = 'sync ' + T[s][1];
   }
+  function teamName() { return localStorage.getItem(TEAM_KEY) || DEFAULT_TEAM; }
+  function renderTeamName() {
+    var n = teamName(), h = $('teamName');
+    if (!h) return;
+    h.textContent = '';
+    var m = n.match(/^(.*\S)\s+(PA)$/);
+    if (m) { h.appendChild(document.createTextNode(m[1] + ' ')); h.appendChild(el('span', 'pa', m[2])); }
+    else h.textContent = n;
+    document.title = n;
+  }
+  function setTeamName(n, remote) {
+    if (!n || n === teamName()) return;
+    try { localStorage.setItem(TEAM_KEY, n); } catch (e) {}
+    renderTeamName();
+  }
+  function editTeamName() {
+    var n = prompt('Team name (shared with everyone):', teamName());
+    if (n == null) return;
+    n = n.trim().slice(0, 40);
+    if (!n || n === teamName()) return;
+    setTeamName(n);
+    push({ t: 'team_settings', a: 'up', c: 'id', r: { id: 1, name: n } });
+  }
   function push(op) { state.outbox.push(op); save(); flush(); }
   function exec(op) {
     var q = sb.from(op.t);
@@ -170,6 +194,8 @@
         pollsOk = false; // poll tables not created yet: keep local polls, don't break the rest
       }
     }
+    var ts = await sb.from('team_settings').select('*').eq('id', 1);
+    if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) setTeamName(ts.data[0].name);
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
     state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name }; });
@@ -201,6 +227,9 @@
 
   function subscribe() {
     if (!sb) return;
+    sb.channel('team-live').on('postgres_changes', { event: '*', schema: 'public', table: 'team_settings' }, function (p) {
+      if (p.new && p.new.name) setTeamName(p.new.name);
+    }).subscribe();
     sb.channel('chat-live').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) {
       addChat(chatRow(p.new), true);
     }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, function (p) {
@@ -967,6 +996,8 @@
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
     renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat();
   }
+  renderTeamName();
+  if ($('teamEdit')) $('teamEdit').addEventListener('click', editTeamName);
   window.addEventListener('online', flush);
   window.addEventListener('offline', function () { setSync('offline'); });
   document.addEventListener('visibilitychange', function () {
