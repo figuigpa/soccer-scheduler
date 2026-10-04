@@ -211,3 +211,6 @@ alter table announcements enable row level security;
 drop policy if exists "open" on announcements;
 create policy "open" on announcements for all using (true) with check (true);
 alter publication supabase_realtime add table announcements;
+
+-- Player profile pictures (B2 object key under avatars/); table already has the open RLS policy
+alter table players add column if not exists picture_url text;

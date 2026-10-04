@@ -127,6 +127,7 @@
       "shirt": "<path d=\"M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z\"/>",
       "clipboard": "<rect x=\"8\" y=\"2\" width=\"8\" height=\"4\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/>",
       "chart": "<path d=\"M18 20V10M12 20V4M6 20v-6\"/>",
+      "image": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/>",
       "camera": "<path d=\"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z\"/><circle cx=\"12\" cy=\"13\" r=\"4\"/>",
       "mic": "<path d=\"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><line x1=\"12\" y1=\"19\" x2=\"12\" y2=\"23\"/><line x1=\"8\" y1=\"23\" x2=\"16\" y2=\"23\"/>",
       "send": "<line x1=\"22\" y1=\"2\" x2=\"11\" y2=\"13\"/><polygon points=\"22 2 15 22 11 13 2 9 22 2\"/>",
@@ -477,7 +478,7 @@
     if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); setPinnedId(ts.data[0].pinned_message_id); }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
-    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult', pin: r.pin || '' }; });
+    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult', pin: r.pin || '', picture_url: r.picture_url || '' }; });
     state.practices = d[1].map(function (r) {
       return { id: r.id, date: r.date, time: (r.time || '').slice(0, 5), location: r.location || '', field_address: r.field_address || '',
         field_map_url: r.field_map_url || '', notes: r.notes || '', created_at: r.created_at };
@@ -853,10 +854,60 @@
   }
 
   // ---------- players ----------
+  // ---------- player avatars (B2 key in players.picture_url, cached in IndexedDB) ----------
+  function playerByName(n) {
+    n = (n || '').trim().toLowerCase();
+    return state.players.filter(function (p) { return p.name.trim().toLowerCase() === n; })[0] || null;
+  }
+  // Fills `node` with initials, then the picture on top when the player has one.
+  function fillAvatar(node, pl, name) {
+    node.textContent = initials(name || pl.name);
+    node.classList.remove('has-pic');
+    if (!pl || !pl.picture_url) return node;
+    var im = document.createElement('img'); im.alt = '';
+    im.onload = function () {
+      Array.prototype.slice.call(node.childNodes).forEach(function (c) { if (c.nodeType === 3) c.remove(); });
+      node.insertBefore(im, node.firstChild); node.classList.add('has-pic');
+    };
+    loadInto(pl.picture_url, im);
+    return node;
+  }
+  function avatarEl(cls, pl, name) { return fillAvatar(el('span', cls), pl, name); }
+  async function changePlayerPic(pl, file) {
+    if (!file) return;
+    try {
+      var blob = await compress(file, 320, 0.8), key = 'avatars/' + pl.id + '-' + Date.now() + '.jpg';
+      await mediaPut(key, blob).catch(function () {});
+      await b2Put(key, blob, 'image/jpeg');
+      pl.picture_url = key;
+      push({ t: 'players', a: 'up', r: playerRow(pl) });
+      renderAll();
+    } catch (e) { uiAlert('Could not upload picture: ' + (e && e.message ? e.message : e)); }
+  }
+  function pickPlayerPic(pl) {
+    var ov = el('div', 'tm-overlay st-overlay'), box = el('div', 'tm-box st-box');
+    function close() { ov.remove(); }
+    ov.onclick = function (e) { if (e.target === ov) close(); };
+    var fi = el('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true;
+    fi.onchange = function () { var f = fi.files && fi.files[0]; close(); changePlayerPic(pl, f); };
+    function opt(ic, label, cap) {
+      var b = el('button', 'st-row'); b.type = 'button';
+      b.innerHTML = svg(ic); b.appendChild(el('span', 'st-label', label));
+      b.onclick = function () { if (cap) fi.setAttribute('capture', 'user'); else fi.removeAttribute('capture'); fi.click(); };
+      return b;
+    }
+    box.appendChild(el('div', 'st-grab'));
+    box.appendChild(opt('camera', 'Take photo', true));
+    box.appendChild(opt('image', 'Choose from gallery', false));
+    var c = el('button', 'st-cancel', 'Cancel'); c.type = 'button'; c.onclick = close;
+    box.appendChild(c); box.appendChild(fi);
+    ov.appendChild(box); document.body.appendChild(ov);
+  }
   // pin is only sent when set, so rows still sync before the pin column exists in Supabase
   function playerRow(p) {
     var r = { id: p.id, name: p.name, category: p.category, created_at: nowIso() };
     if (p.pin) r.pin = p.pin;
+    if (p.picture_url) r.picture_url = p.picture_url;
     return r;
   }
   $('player-form').onsubmit = function (e) {
@@ -885,7 +936,14 @@
       group.forEach(addRow);
     });
     function addRow(pl) {
-      var li = el('li'); li.appendChild(el('strong', null, pl.name));
+      var li = el('li');
+      var ab = el('button', 'pl-av'); ab.type = 'button';
+      ab.setAttribute('aria-label', 'Change picture for ' + pl.name);
+      fillAvatar(ab, pl);
+      ab.appendChild(ei('i', 'pl-cam', 'camera'));
+      ab.onclick = function () { pickPlayerPic(pl); };
+      li.appendChild(ab);
+      li.appendChild(el('strong', null, pl.name));
       var kid = pl.category === 'kid';
       var tag = el('button', 'cat-tag' + (kid ? ' kid' : ''), kid ? 'Kid' : 'Adult');
       tag.type = 'button';
@@ -978,7 +1036,7 @@
   }
   function chipBtn(cls, name, ic, label) {
     var b = el('button', 'pchip ' + cls); b.type = 'button';
-    b.appendChild(el('span', 'pav', initials(name)));
+    b.appendChild(avatarEl('pav', playerByName(name), name));
     b.appendChild(el('span', 'pn', name));
     if (label) b.appendChild(el('em', 'pq', label));
     if (ic) b.insertAdjacentHTML('beforeend', '<span class="pi">' + svg(ic) + '</span>');
@@ -1118,7 +1176,7 @@
       if (d) { delete have[pl.id]; d.innerHTML = ''; } else { d = el('div'); d.dataset.id = pl.id; }
       d.className = 'pl ' + teamCls(p, pl) + (luSel === pl.id ? ' sel' : '') + (fresh ? ' pop' : '');
       d.style.left = pos.x + '%'; d.style.top = pos.y + '%';
-      d.appendChild(el('span', 'jersey', initials(pl.name)));
+      d.appendChild(avatarEl('jersey', pl));
       d.appendChild(el('span', 'nm', pl.name.split(/\s+/)[0]));
       if (luSel === pl.id) {
         var x = el('button', 'rm', '×');
@@ -1145,7 +1203,7 @@
     else if (!pool.length) ro.appendChild(el('p', 'muted', 'No players marked Available for this game. Set them in the Availability tab.'));
     pool.forEach(function (pl) {
       var c = el('button', 'lchip ' + teamCls(p, pl) + (L.pos[pl.id] ? ' on' : '') + (luSel === pl.id ? ' sel' : ''));
-      c.appendChild(el('span', 'jersey', initials(pl.name)));
+      c.appendChild(avatarEl('jersey', pl));
       c.appendChild(el('span', null, pl.name));
       c.onclick = function () { luSel = luSel === pl.id ? null : pl.id; renderLineup(); };
       ro.appendChild(c);
@@ -2471,6 +2529,7 @@
     memberNames().forEach(function (n) {
       var adm = isAdmin(n);
       var li = el('li', 'member' + (adm ? ' is-admin' : ''));
+      li.appendChild(avatarEl('pav', playerByName(n), n));
       li.appendChild(el('span', 'mname', n + (me && n.toLowerCase() === me.toLowerCase() ? ' (you)' : '')));
       if (adm) li.appendChild(ei('span', 'admin-badge', 'star', 'Admin'));
       if (amAdmin) {
@@ -2660,6 +2719,10 @@
   }
   renderTeamName();
   renderTeamPic();
+  if (sb) sb.from('team_settings').select('name,picture_url').eq('id', 1).then(function (r) {
+    var d = r && r.data && r.data[0];
+    if (d && d.picture_url) setTeamPic(d.picture_url);
+  }, function () {});
   initGate();
   if ($('teamEdit')) $('teamEdit').addEventListener('click', teamSettings);
   window.addEventListener('online', flush);

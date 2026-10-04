@@ -684,3 +684,15 @@ body.on-chat .qa-fab{display:none}
 @keyframes stup{from{transform:translateY(40px) scale(.97);opacity:0}to{transform:none;opacity:1}}
 @keyframes stdown{to{transform:translateY(40px) scale(.97);opacity:0}}
 @keyframes fadeout{to{opacity:0}}
+
+/* player avatars */
+.pav,.jersey,.member .pav{overflow:hidden;position:relative}
+.pav img,.jersey img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.pav.has-pic,.pchip.red .pav.has-pic,.pchip.yellow .pav.has-pic{background:#fff}
+.jersey.has-pic,.pl .jersey.has-pic,.lchip .jersey.has-pic{background:#fff}
+.lchip .jersey{flex:none}
+.member .pav{margin-right:2px}
+.pl-av{position:relative;flex:none;width:40px;height:40px;margin-right:10px;padding:0;border-radius:50%;border:0;display:grid;place-items:center;overflow:visible;background:#e3e9e2;color:#3d5444;font-weight:800;font-size:.8rem;cursor:pointer}
+.pl-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pl-av .pl-cam{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;box-shadow:0 0 0 2px #fff}
+.pl-av .pl-cam svg.i{width:10px;height:10px;margin:0;color:#fff}
