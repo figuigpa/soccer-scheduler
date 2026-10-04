@@ -512,3 +512,46 @@ background:var(--md-bg);color:var(--md-fg);border-radius:20px;width:100%;max-wid
 @keyframes md-up{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
 @keyframes md-down{to{opacity:0;transform:translateY(40px)}}
 @media (prefers-reduced-motion:reduce){.md-overlay,.md-box{animation-duration:.01s!important}}
+
+/* ---------- PIN gate ---------- */
+body.locked{overflow:hidden}
+body.locked .app-head,body.locked main,body.locked .bottombar,body.locked #ptr,body.locked #viewer,body.locked #teamMenu{display:none!important}
+.gate{display:none}
+body.locked .gate{display:grid}
+.gate{position:fixed;inset:0;z-index:150;place-items:center;padding:calc(20px + var(--sat)) 20px calc(20px + var(--sab));overflow:auto;
+  background:radial-gradient(120% 90% at 50% 0%,#1f7a43 0%,#134a29 45%,#0b2e1a 100%);color:#fff;transition:opacity .38s ease,transform .38s ease}
+.gate.leaving{opacity:0;transform:scale(1.04);pointer-events:none}
+.gate-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.gate-bg i{position:absolute;width:140vmax;height:140vmax;left:50%;top:50%;border-radius:50%;border:2px solid rgba(255,255,255,.06);transform:translate(-50%,-50%) scale(.2);animation:gRing 9s linear infinite}
+.gate-bg i:nth-child(2){animation-delay:3s}.gate-bg i:nth-child(3){animation-delay:6s}
+@keyframes gRing{0%{transform:translate(-50%,-50%) scale(.05);opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+.gate-card{position:relative;width:100%;max-width:360px;text-align:center;animation:gIn .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes gIn{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+.gate-crest.crest{width:116px;height:116px;margin:0 auto 18px;box-shadow:0 0 0 5px var(--yellow),0 12px 30px rgba(0,0,0,.45);animation:gFloat 4s ease-in-out infinite}
+.gate-crest.crest svg.i{width:62px;height:62px}
+@keyframes gFloat{50%{transform:translateY(-6px)}}
+.gate-team{margin:0;font-size:2.1rem;line-height:1.1;letter-spacing:.5px;font-weight:800}
+.gate-team .pa{color:var(--yellow)}
+.gate-sub{margin:10px 0 26px;color:rgba(255,255,255,.78);font-size:.98rem}
+.pin-boxes{display:flex;justify-content:center;gap:12px}
+.pin-boxes input{width:56px;height:68px;border-radius:16px;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:1.9rem;font-weight:700;text-align:center;
+  padding:0;caret-color:var(--yellow);outline:none;transition:border-color .15s,background .15s,transform .15s;-webkit-appearance:none;appearance:none}
+.pin-boxes input:focus{border-color:var(--yellow);background:rgba(255,255,255,.18);transform:translateY(-2px)}
+.pin-boxes.bad{animation:gShake .45s}
+.pin-boxes.bad input{border-color:#ff8a8a;background:rgba(214,40,40,.25)}
+.pin-boxes.ok input{border-color:#7dffa0;background:rgba(80,220,120,.3)}
+@keyframes gShake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.gate-err{min-height:1.4em;margin:14px 0 6px;color:#ffb4b4;font-size:.92rem;font-weight:600}
+.gate-btn{width:100%;margin-top:6px;padding:15px;border:0;border-radius:14px;background:var(--yellow);color:#2b2100;font-size:1.05rem;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .12s,opacity .12s}
+.gate-btn:active{transform:scale(.97)}.gate-btn:disabled{opacity:.6}
+.gate-setup{display:flex;flex-direction:column;gap:10px;text-align:left}
+.gate-note{margin:0 0 6px;font-size:.88rem;color:rgba(255,255,255,.8);text-align:center}
+.gate-setup select,.gate-setup input{width:100%;padding:14px;border-radius:12px;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;font-size:1rem;outline:none}
+.gate-setup select option{color:#16221a}
+.gate-setup input::placeholder{color:rgba(255,255,255,.6)}
+.gate-setup select:focus,.gate-setup input:focus{border-color:var(--yellow)}
+.pin-tag{border:0;border-radius:999px;padding:3px 10px;margin-left:6px;background:#eef4ef;color:var(--green);font-size:.78rem;font-weight:700;letter-spacing:1px;cursor:pointer}
+.pin-tag.none{background:#fff3d6;color:#8a5a00;letter-spacing:0}
+.pin-in{width:64px;flex:none;text-align:center}
+.tm-logout{color:var(--red)}
+@media (prefers-reduced-motion:reduce){.gate-bg i,.gate-crest.crest,.gate-card{animation:none}}

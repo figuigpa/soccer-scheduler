@@ -165,3 +165,6 @@ alter table albums enable row level security;
 drop policy if exists "open" on albums;
 create policy "open" on albums for all using (true) with check (true);
 alter publication supabase_realtime add table albums;
+
+-- Player PINs (invitation codes): each player's 4-digit PIN is their login and chat identity
+alter table players add column if not exists pin text;

@@ -19,7 +19,32 @@
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="locked">
+<div id="gate" class="gate" role="dialog" aria-label="Enter your PIN">
+  <div class="gate-bg" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="gate-card">
+    <div class="gate-crest crest" aria-hidden="true"></div>
+    <h1 id="gate-team" class="gate-team">Figuig <span class="pa">PA</span></h1>
+    <p class="gate-sub" id="gate-sub">Enter your 4-digit invitation PIN</p>
+    <form id="gate-form" autocomplete="off">
+      <div class="pin-boxes" id="pin-boxes">
+        <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 1">
+        <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 2">
+        <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 3">
+        <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 4">
+      </div>
+      <p id="gate-err" class="gate-err" role="alert" aria-live="polite"></p>
+      <button id="gate-go" class="gate-btn" type="submit">Enter</button>
+    </form>
+    <form id="gate-setup" class="gate-setup" hidden autocomplete="off">
+      <p class="gate-note">No PINs have been set yet. The first person in becomes the team admin and sets everyone’s PIN.</p>
+      <select id="gs-name" aria-label="Who are you?"></select>
+      <input type="text" id="gs-new" placeholder="Your name" maxlength="40" hidden>
+      <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="gs-pin" placeholder="Choose a 4-digit PIN" autocomplete="off">
+      <button class="gate-btn" type="submit">Create PIN &amp; enter</button>
+    </form>
+  </div>
+</div>
 <header class="app-head">
   <div class="brand">
     <span class="crest" aria-hidden="true" data-ic="ball"></span>
@@ -63,6 +88,7 @@
   <section id="players" class="tab">
     <form id="player-form" class="card row">
       <input type="text" id="player-name" placeholder="Player name" required>
+      <input type="text" id="player-pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="PIN" class="pin-in" aria-label="4-digit PIN (optional)" hidden>
       <select id="player-cat" aria-label="Adult or Kid"><option value="adult" selected>Adult</option><option value="kid">Kid</option></select>
       <button class="primary" type="submit">Add</button>
     </form>
@@ -209,7 +235,6 @@
           <button id="chat-more" class="ch-btn" type="button" aria-label="Menu" data-ic="more"></button>
           <div id="chat-menu" class="ch-menu" hidden>
             <button id="members-btn" type="button">Group info</button>
-            <button id="chat-name" type="button">Change my name</button>
           </div>
         </span>
       </div>

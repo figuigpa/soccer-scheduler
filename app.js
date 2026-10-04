@@ -175,12 +175,9 @@
   }
   hydrateIcons();
   function nowIso() { return new Date().toISOString(); }
+  // Identity comes from the verified PIN (see the gate section); there is no free-text name entry.
   function myName() { return localStorage.getItem(NAME_KEY) || ''; }
-  async function askName(msg) {
-    var n = ((await uiPrompt(msg, myName(), { title: 'Your name', placeholder: 'Enter your name' })) || '').trim();
-    if (n) localStorage.setItem(NAME_KEY, n);
-    return n;
-  }
+  async function askName() { return myName(); }
   function safeUrl(u) { return /^https?:\/\//i.test((u || '').trim()) ? u.trim() : null; }
   function mapsHref(url, addr) {
     var u = safeUrl(url);
@@ -281,6 +278,7 @@
     if (m) { h.appendChild(document.createTextNode(m[1] + ' ')); h.appendChild(el('span', 'pa', m[2])); }
     else h.textContent = n;
     document.title = n;
+    if ($('gate-team')) $('gate-team').innerHTML = h.innerHTML;
   }
   function setTeamName(n, remote) {
     if (!n || n === teamName()) return;
@@ -298,8 +296,10 @@
   var PIC_KEY = 'rf.teamPic';
   function teamPic() { return localStorage.getItem(PIC_KEY) || ''; }
   function renderTeamPic() {
-    var c = document.querySelector('.crest'), u = teamPic();
-    if (!c) return;
+    var u = teamPic();
+    Array.prototype.forEach.call(document.querySelectorAll('.crest'), function (c) { crestPic(c, u); });
+  }
+  function crestPic(c, u) {
     c.textContent = '';
     c.classList.toggle('has-pic', !!u);
     if (u) {
@@ -372,7 +372,13 @@
       mediaClear().then(showUsage).catch(function () { sInfo.textContent = 'Could not clear cache'; });
     };
     showUsage();
-    box.appendChild(b1); box.appendChild(b2); box.appendChild(sInfo); box.appendChild(b4); box.appendChild(b3); box.appendChild(fi);
+    var b5 = el('button', 'tm-btn tm-logout', 'Log out' + (myName() ? ' (' + myName() + ')' : ''));
+    b5.type = 'button';
+    b5.onclick = async function () {
+      if (!(await uiConfirm('Log out of this device? You will need your PIN to get back in.', { title: 'Log out?', ok: 'Log out', danger: true }))) return;
+      ov.remove(); logout();
+    };
+    box.appendChild(b1); box.appendChild(b2); box.appendChild(sInfo); box.appendChild(b4); box.appendChild(b5); box.appendChild(b3); box.appendChild(fi);
     ov.appendChild(box); document.body.appendChild(ov);
   }
   function push(op) { state.outbox.push(op); save(); flush(); }
@@ -439,7 +445,7 @@
     if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
-    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult' }; });
+    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult', pin: r.pin || '' }; });
     state.practices = d[1].map(function (r) {
       return { id: r.id, date: r.date, time: (r.time || '').slice(0, 5), location: r.location || '', field_address: r.field_address || '',
         field_map_url: r.field_map_url || '', notes: r.notes || '', created_at: r.created_at };
@@ -465,6 +471,8 @@
     d[7].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
     save(); setSync('synced');
     renderAll(true);
+    checkSession();
+    if (document.body.classList.contains('locked')) gateMode();
   }
   function byCreated(a, b) { return (a.created_at || '') < (b.created_at || '') ? -1 : 1; }
   function chatRow(r) { return { id: r.id, sender: r.sender, body: r.body, created_at: r.created_at }; }
@@ -701,17 +709,27 @@
   }
 
   // ---------- players ----------
+  // pin is only sent when set, so rows still sync before the pin column exists in Supabase
+  function playerRow(p) {
+    var r = { id: p.id, name: p.name, category: p.category, created_at: nowIso() };
+    if (p.pin) r.pin = p.pin;
+    return r;
+  }
   $('player-form').onsubmit = function (e) {
     e.preventDefault();
     var name = $('player-name').value.trim();
     if (!name) return;
-    var p = { id: uid(), name: name, category: $('player-cat').value === 'kid' ? 'kid' : 'adult' };
+    var pin = $('player-pin').value.trim();
+    if (pin && !/^\d{4}$/.test(pin)) { uiAlert('PIN must be exactly 4 digits.'); return; }
+    if (pin && pinTaken(pin)) { uiAlert('That PIN is already used by another player.'); return; }
+    var p = { id: uid(), name: name, category: $('player-cat').value === 'kid' ? 'kid' : 'adult', pin: pin || (canManagePins() ? freePin() : '') };
     state.players.push(p);
-    push({ t: 'players', a: 'up', r: { id: p.id, name: name, category: p.category, created_at: nowIso() } });
+    push({ t: 'players', a: 'up', r: playerRow(p) });
     e.target.reset(); renderAll();
   };
   function renderPlayers() {
     var ul = $('player-list'); ul.innerHTML = '';
+    $('player-pin').hidden = !canManagePins();
     $('player-count').textContent = state.players.length + ' player' + (state.players.length === 1 ? '' : 's');
     state.players.forEach(function (pl) {
       var li = el('li'); li.appendChild(el('strong', null, pl.name));
@@ -721,10 +739,26 @@
       tag.setAttribute('aria-label', pl.name + ' is ' + (kid ? 'a kid' : 'an adult') + '. Tap to change.');
       tag.onclick = function () {
         pl.category = kid ? 'adult' : 'kid';
-        push({ t: 'players', a: 'up', r: { id: pl.id, name: pl.name, category: pl.category, created_at: nowIso() } });
+        push({ t: 'players', a: 'up', r: playerRow(pl) });
         renderAll();
       };
       li.appendChild(tag);
+      if (canManagePins()) {
+        var pb = el('button', 'pin-tag' + (pl.pin ? '' : ' none'), pl.pin ? 'PIN ' + pl.pin : 'Set PIN');
+        pb.type = 'button';
+        pb.setAttribute('aria-label', 'Set PIN for ' + pl.name);
+        pb.onclick = async function () {
+          var v = await uiPrompt('4-digit PIN for ' + pl.name + '. Leave empty to generate a new one.', pl.pin || '', { title: 'Player PIN', placeholder: '1234', maxLength: 4 });
+          if (v == null) return;
+          v = v.trim() || freePin();
+          if (!/^\d{4}$/.test(v)) { uiAlert('PIN must be exactly 4 digits.'); return; }
+          if (pinTaken(v, pl.id)) { uiAlert('That PIN is already used by another player.'); return; }
+          pl.pin = v;
+          push({ t: 'players', a: 'up', r: playerRow(pl) });
+          renderAll();
+        };
+        li.appendChild(pb);
+      }
       var del = ei('button', 'del', 'trash');
       del.setAttribute('aria-label', 'Remove ' + pl.name);
       del.onclick = async function () {
@@ -2060,7 +2094,151 @@
   $('chat-back').onclick = function () { showTab(beforeChat); };
   $('chat-video').onclick = function () { uiAlert('Video calls are not available in this app.'); };
   $('members-close').onclick = function () { $('members').hidden = true; };
-  $('chat-name').onclick = async function () { $('chat-menu').hidden = true; if (await askName('Your name for chat')) renderChat(); };
+
+
+  // ---------- PIN gate ----------
+  var PIN_KEY = 'rf.pin';
+  function pinOf(pin) { return state.players.filter(function (p) { return p.pin && p.pin === pin; })[0] || null; }
+  function pinTaken(pin, exceptId) { return state.players.some(function (p) { return p.pin === pin && p.id !== exceptId; }); }
+  function freePin() {
+    for (var i = 0; i < 500; i++) {
+      var p = ('000' + Math.floor(Math.random() * 10000)).slice(-4);
+      if (!pinTaken(p)) return p;
+    }
+    return '';
+  }
+  // Admins manage PINs; until the first admin exists, any logged-in member can.
+  function canManagePins() { return !!myName() && (!state.admins.length || iAmAdmin()); }
+  function unlock(p) {
+    localStorage.setItem(PIN_KEY, p.pin);
+    localStorage.setItem(NAME_KEY, p.name);
+    document.body.classList.remove('locked');
+    renderAll();
+  }
+  function lockGate(msg) {
+    document.body.classList.add('locked');
+    $('gate').classList.remove('leaving');
+    gateMode(); resetBoxes(msg || '');
+  }
+  function logout() {
+    localStorage.removeItem(PIN_KEY); localStorage.removeItem(NAME_KEY);
+    lockGate();
+  }
+  // Re-check the stored PIN after each sync: a reset or removed PIN logs the device out.
+  function checkSession() {
+    var pin = localStorage.getItem(PIN_KEY);
+    if (!pin) return;
+    var p = pinOf(pin);
+    if (!p) { if (state.players.length) { localStorage.removeItem(PIN_KEY); localStorage.removeItem(NAME_KEY); lockGate('Your PIN is no longer valid. Enter your new PIN.'); } return; }
+    if (p.name !== myName()) { localStorage.setItem(NAME_KEY, p.name); renderAll(); }
+  }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#pin-boxes input'));
+  function pinValue() { return boxes.map(function (b) { return b.value; }).join(''); }
+  function resetBoxes(msg) {
+    boxes.forEach(function (b) { b.value = ''; });
+    $('gate-err').textContent = msg || '';
+    $('pin-boxes').classList.remove('bad');
+    if (!document.body.classList.contains('locked')) return;
+    setTimeout(function () { boxes[0].focus(); }, 60);
+  }
+  async function verifyPin(pin) {
+    var p = pinOf(pin);
+    if (!p && sb && navigator.onLine) { // cache may be stale or empty on a new device
+      try {
+        var r = await sb.from('players').select('*');
+        if (!r.error && r.data) {
+          var row = r.data.filter(function (x) { return x.pin && x.pin === pin; })[0];
+          if (row) {
+            p = { id: row.id, name: row.name, category: row.category === 'kid' ? 'kid' : 'adult', pin: row.pin };
+            if (!state.players.some(function (x) { return x.id === p.id; })) { state.players.push(p); save(); }
+          }
+        } else if (r.error && /pin/i.test(r.error.message || '')) return { err: 'Setup needed: the PIN column is missing in the database.' };
+      } catch (e) {}
+    }
+    if (p) return { p: p };
+    return { err: (sb && !navigator.onLine && !state.players.length) ? 'You appear to be offline. Connect and try again.' : 'That PIN is not valid. Please try again.' };
+  }
+  var tryingPin = false;
+  async function submitPin() {
+    if (tryingPin) return;
+    var pin = pinValue();
+    if (pin.length < 4) { $('gate-err').textContent = 'Enter all 4 digits.'; return; }
+    tryingPin = true; $('gate-go').disabled = true;
+    var r = await verifyPin(pin);
+    tryingPin = false; $('gate-go').disabled = false;
+    if (r.p) {
+      $('pin-boxes').classList.add('ok');
+      $('gate').classList.add('leaving');
+      setTimeout(function () { unlock(r.p); $('pin-boxes').classList.remove('ok'); }, 380);
+      flush();
+    } else {
+      $('gate-err').textContent = r.err;
+      var pb = $('pin-boxes'); pb.classList.remove('bad'); void pb.offsetWidth; pb.classList.add('bad');
+      boxes.forEach(function (b) { b.value = ''; }); boxes[0].focus();
+    }
+  }
+  boxes.forEach(function (b, i) {
+    b.addEventListener('input', function () {
+      b.value = b.value.replace(/\D/g, '').slice(-1);
+      $('gate-err').textContent = ''; $('pin-boxes').classList.remove('bad');
+      if (b.value && i < 3) boxes[i + 1].focus();
+      if (pinValue().length === 4) submitPin();
+    });
+    b.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && !b.value && i > 0) { boxes[i - 1].value = ''; boxes[i - 1].focus(); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+      else if (e.key === 'ArrowRight' && i < 3) boxes[i + 1].focus();
+    });
+    b.addEventListener('focus', function () { b.select(); });
+    b.addEventListener('paste', function (e) {
+      var t = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '').slice(0, 4);
+      if (!t) return; e.preventDefault();
+      boxes.forEach(function (x, k) { x.value = t[k] || ''; });
+      if (t.length === 4) submitPin(); else boxes[Math.min(t.length, 3)].focus();
+    });
+  });
+  $('gate-form').onsubmit = function (e) { e.preventDefault(); submitPin(); };
+
+  // First-run bootstrap: while nobody has a PIN, the first person picks their name, sets a PIN and becomes admin.
+  function noPinsYet() { return !state.players.some(function (p) { return p.pin; }); }
+  function gateMode() {
+    var setup = syncState === 'synced' && noPinsYet();
+    $('gate-setup').hidden = !setup; $('gate-form').hidden = setup;
+    $('gate-sub').textContent = setup ? 'Welcome! Set up your admin PIN' : 'Enter your 4-digit invitation PIN';
+    if (!setup) return;
+    var sel = $('gs-name'), cur = sel.value; sel.innerHTML = '';
+    state.players.filter(function (p) { return p.category !== 'kid'; }).forEach(function (p) { var o = el('option', null, p.name); o.value = p.id; sel.appendChild(o); });
+    var o = el('option', null, 'Someone else…'); o.value = '_new'; sel.appendChild(o);
+    if (cur) sel.value = cur;
+    $('gs-new').hidden = sel.value !== '_new';
+  }
+  $('gs-name').onchange = function () { $('gs-new').hidden = this.value !== '_new'; };
+  $('gate-setup').onsubmit = async function (e) {
+    e.preventDefault();
+    var pin = $('gs-pin').value.trim(), id = $('gs-name').value, p;
+    if (!/^\d{4}$/.test(pin)) { uiAlert('Choose a 4-digit PIN.'); return; }
+    if (!noPinsYet()) { gateMode(); return; }
+    if (id === '_new') {
+      var n = $('gs-new').value.trim();
+      if (!n) { uiAlert('Enter your name.'); return; }
+      p = { id: uid(), name: n, category: 'adult', pin: pin }; state.players.push(p);
+    } else {
+      p = state.players.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+      p.pin = pin;
+    }
+    push({ t: 'players', a: 'up', r: playerRow(p) });
+    if (!state.admins.length) setAdmin(p.name, true);
+    $('gs-pin').value = '';
+    unlock(p);
+  };
+  function initGate() {
+    $('gate-team').innerHTML = $('teamName').innerHTML;
+    var saved = localStorage.getItem(PIN_KEY), p = saved && pinOf(saved);
+    if (p) { document.body.classList.remove('locked'); localStorage.setItem(NAME_KEY, p.name); return; }
+    localStorage.removeItem(NAME_KEY); // saved PIN not in the local cache yet: verify against the server below
+    gateMode(); resetBoxes();
+    if (saved) verifyPin(saved).then(function (r) { if (r.p) unlock(r.p); });
+  }
 
   // ---------- render ----------
   function renderAll(fromSync) {
@@ -2070,6 +2248,7 @@
   }
   renderTeamName();
   renderTeamPic();
+  initGate();
   if ($('teamEdit')) $('teamEdit').addEventListener('click', teamSettings);
   window.addEventListener('online', flush);
   window.addEventListener('offline', function () { setSync('offline'); });
