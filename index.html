@@ -132,6 +132,7 @@
 <nav class="subnav" data-pane="gather">
   <button data-tab="events" class="active">🎉 Events</button>
   <button data-tab="polls">📊 Polls</button>
+  <button data-tab="album">📷 Album</button>
 </nav>
 
   <section id="events" class="tab active">
@@ -166,6 +167,16 @@
     <h2>Polls</h2>
     <ul id="poll-list" class="list"></ul>
   </section>
+
+  <section id="album" class="tab">
+    <h2 class="page-title">📷 Album</h2>
+    <div class="card">
+      <input type="file" id="album-file" accept="image/*" multiple hidden>
+      <button class="primary" type="button" id="album-add">＋ Add photos</button>
+      <p class="muted" id="album-status"></p>
+    </div>
+    <div id="album-grid" class="album-grid"></div>
+  </section>
 </div>
 <div id="chat-pane" class="pane">
   <section id="chat" class="tab active">
@@ -173,7 +184,11 @@
       <div class="chat-head"><span>Team chat</span><span><button id="members-btn" class="link light" type="button">👥 Members</button><button id="chat-name" class="link light" type="button">Change name</button></span></div>
       <div id="members" class="members" hidden><div class="members-head"><strong>Group info</strong><button id="members-close" class="link" type="button">Close</button></div><div id="members-body"></div></div>
       <div id="chat-msgs" class="chat-msgs"></div>
+      <div id="rec-bar" class="rec-bar" hidden><span class="rec-dot"></span> Recording <b id="rec-time">0:00</b> <span>· tap 🎤 to send</span><button type="button" id="rec-cancel" class="link light">Cancel</button></div>
       <form id="chat-form" class="chat-bar">
+        <input id="chat-file" type="file" accept="image/*" hidden>
+        <button class="tool" type="button" id="chat-photo" aria-label="Send picture">📷</button>
+        <button class="tool" type="button" id="chat-mic" aria-label="Record voice message">🎤</button>
         <input id="chat-input" type="text" placeholder="Type a message" autocomplete="off" aria-label="Message">
         <button class="send" type="submit" aria-label="Send">➤</button>
       </form>
@@ -186,6 +201,7 @@
   <button data-pane="gather"><span class="ic">🎉</span><span class="lb">Gathering</span></button>
   <button data-pane="chat-pane"><span class="ic">💬<b id="chat-dot" class="dot" style="display:none">0</b></span><span class="lb">Chat</span></button>
 </nav>
+<div id="viewer" class="viewer" hidden><button id="viewer-close" type="button" aria-label="Close">✕</button><img id="viewer-img" alt=""><div id="viewer-cap" class="viewer-cap"></div><button id="viewer-del" type="button" class="viewer-del" hidden>🗑 Delete</button></div>
 <script src="app.js"></script>
 </body>
 </html>

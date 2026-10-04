@@ -135,3 +135,18 @@ drop policy if exists "team-assets read" on storage.objects;
 drop policy if exists "team-assets upload" on storage.objects;
 create policy "team-assets read" on storage.objects for select using (bucket_id = 'team-assets');
 create policy "team-assets upload" on storage.objects for insert with check (bucket_id = 'team-assets');
+
+-- Photo album (image bytes live in Backblaze B2; url/thumb_url hold the B2 object key)
+create table if not exists photos (
+  id uuid primary key,
+  url text not null,
+  thumb_url text,
+  uploader text,
+  caption text,
+  created_at timestamptz default now()
+);
+alter table photos enable row level security;
+drop policy if exists "open" on photos;
+create policy "open" on photos for all using (true) with check (true);
+alter publication supabase_realtime add table photos;
+-- Chat images/voice are stored in chat_messages.body as "[img]<key>" / "[voice]<key>|<seconds>": no ALTER TABLE needed.

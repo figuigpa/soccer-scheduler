@@ -61,7 +61,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], polls: [], pollOpts: [], pollVotes: [], admins: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], polls: [], pollOpts: [], pollVotes: [], admins: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -263,6 +263,7 @@
         pollsOk = false; // poll tables not created yet: keep local polls, don't break the rest
       }
     }
+    var photosRes = await sb.from('photos').select('*');
     var ad = await sb.from('chat_admins').select('*');
     var adminsOk = !ad.error;
     var ts = await sb.from('team_settings').select('*').eq('id', 1);
@@ -283,6 +284,7 @@
     state.items = d[4].sort(byCreated);
     state.assignments = d[5].sort(byCreated);
     state.chat = d[6].sort(byCreated).map(chatRow);
+    if (!photosRes.error) state.photos = (photosRes.data || []).sort(byCreated);
     if (pollsOk) {
       state.polls = pres[0].data.sort(byCreated);
       state.pollOpts = pres[1].data.sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
@@ -345,7 +347,7 @@
   function teamable(a) { return a === 'maybe' || a === 'available'; }
 
   // ---------- navigation: 2 panes (Soccer / Gathering), each with sub-sections ----------
-  var paneOf = { polls: 'gather', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', chat: 'chat-pane' };
+  var paneOf = { polls: 'gather', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'gather', chat: 'chat-pane' };
   var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat' };
   var curTab = 'practices';
   function showTab(name) {
@@ -617,7 +619,7 @@
     var t = state.teams[p.id] = state.teams[p.id] || {};
     var c = { red: 0, yellow: 0 };
     state.players.forEach(function (pl) { if (t[pl.id] && teamable(getAvail(p.id, pl.id))) c[t[pl.id]]++; });
-    state.players.filter(function (pl) { return teamable(getAvail(p.id, pl.id)) && !t[pl.id]; })
+    state.players.filter(function (pl) { return getAvail(p.id, pl.id) === 'available' && !t[pl.id]; })
       .sort(function () { return Math.random() - 0.5; })
       .forEach(function (pl) { var k = c.red <= c.yellow ? 'red' : 'yellow'; t[pl.id] = k; c[k]++; });
     save(); renderTeams();
@@ -1011,7 +1013,14 @@
       var mine = !!me && m.sender === me;
       var b = el('div', 'bubble ' + (mine ? 'mine' : 'theirs') + (lastSender === m.sender ? ' cont' : ''));
       if (!mine && lastSender !== m.sender) b.appendChild(el('div', 'who', m.sender + (isAdmin(m.sender) ? ' ⭐' : '')));
-      b.appendChild(el('span', 'body', m.body));
+      var media = parseMedia(m.body);
+      if (media && media.type === 'img') {
+        var im = el('img', 'img'); im.alt = 'Photo'; im.loading = 'lazy';
+        loadInto(media.key, im);
+        im.onclick = function (e) { e.stopPropagation(); openViewer(media.key, '', null); };
+        b.appendChild(im);
+      } else if (media) b.appendChild(voiceBubble(media));
+      else b.appendChild(el('span', 'body', m.body));
       b.appendChild(el('span', 'time', fmtTime(m.created_at)));
       if (mine || iAmAdmin()) {
         b.classList.add('deletable'); b.title = 'Tap to delete';
@@ -1031,7 +1040,7 @@
   }
   function deleteChat(m) {
     if (!myName() || (m.sender !== myName() && !iAmAdmin())) return;
-    if (!confirm('Delete ' + (m.sender === myName() ? 'this message' : m.sender + "'s message") + '?\n\n' + m.body.slice(0, 120))) return;
+    if (!confirm('Delete ' + (m.sender === myName() ? 'this message' : m.sender + "'s message") + '?\n\n' + (parseMedia(m.body) ? '(media)' : m.body.slice(0, 120)))) return;
     removeChat(m.id);
     push({ t: 'chat_messages', a: 'del', m: { id: m.id } });
   }
@@ -1050,7 +1059,7 @@
   function notify(m) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (!document.hidden && document.hasFocus()) return;
-    var opts = { body: m.body, tag: 'rf-chat', icon: 'icon-192.png' };
+    var pm = parseMedia(m.body), opts = { body: pm ? (pm.type === 'img' ? '📷 Photo' : '🎤 Voice message') : m.body, tag: 'rf-chat', icon: 'icon-192.png' };
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.ready) {
         navigator.serviceWorker.ready.then(function (r) { r.showNotification(m.sender, opts); }).catch(function () { new Notification(m.sender, opts); });
@@ -1077,6 +1086,224 @@
     addChat(m, false);
     push({ t: 'chat_messages', a: 'up', r: m });
     inp.focus();
+  };
+  function sendMedia(body) {
+    var name = myName() || askName('Your name for chat');
+    if (!name) return;
+    var m = { id: uid(), sender: name, body: body, created_at: nowIso() };
+    addChat(m, false);
+    push({ t: 'chat_messages', a: 'up', r: m });
+  }
+  // ---------- Backblaze B2 media (S3 API, SigV4 presigned URLs) ----------
+  var B2 = { host: 's3.us-east-005.backblazeb2.com', region: 'us-east-005', bucket: 'team-photos',
+    id: '00507055f19acd20000000001', secret: 'K005aiJ1bb4wq3zXvlLgP7aCaJHFsMo' };
+  var enc = new TextEncoder();
+  function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  async function hmac(key, str) {
+    var k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    return crypto.subtle.sign('HMAC', k, enc.encode(str));
+  }
+  function rfc3986(s) { return encodeURIComponent(s).replace(/[!'()*]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }); }
+  async function presign(method, key, expires) {
+    var now = new Date(), amz = now.toISOString().replace(/[-:]|\.\d{3}/g, ''), day = amz.slice(0, 8);
+    var scope = day + '/' + B2.region + '/s3/aws4_request';
+    var path = '/' + B2.bucket + '/' + key.split('/').map(rfc3986).join('/');
+    var q = { 'X-Amz-Algorithm': 'AWS4-HMAC-SHA256', 'X-Amz-Credential': B2.id + '/' + scope, 'X-Amz-Date': amz,
+      'X-Amz-Expires': String(expires), 'X-Amz-SignedHeaders': 'host' };
+    var qs = Object.keys(q).sort().map(function (k) { return rfc3986(k) + '=' + rfc3986(q[k]); }).join('&');
+    var canon = [method, path, qs, 'host:' + B2.host + '\n', 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+    var hash = hex(await crypto.subtle.digest('SHA-256', enc.encode(canon)));
+    var sts = ['AWS4-HMAC-SHA256', amz, scope, hash].join('\n');
+    var k = await hmac(enc.encode('AWS4' + B2.secret), day);
+    k = await hmac(k, B2.region); k = await hmac(k, 's3'); k = await hmac(k, 'aws4_request');
+    var sig = hex(await hmac(k, sts));
+    return 'https://' + B2.host + path + '?' + qs + '&X-Amz-Signature=' + sig;
+  }
+  var urlCache = {};
+  async function getUrl(key) {
+    var c = urlCache[key];
+    if (c && c.exp > Date.now()) return c.url;
+    var url = await presign('GET', key, 86400);
+    urlCache[key] = { url: url, exp: Date.now() + 12 * 3600 * 1000 };
+    return url;
+  }
+  function loadInto(key, node) {
+    getUrl(key).then(function (u) {
+      if (node.tagName === 'IMG' || node.tagName === 'AUDIO') node.src = u; else node.style.backgroundImage = 'url("' + u + '")';
+    }).catch(function () {});
+  }
+  async function b2Put(key, blob, type) {
+    var url = await presign('PUT', key, 600);
+    var r = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': type } });
+    if (!r.ok) throw new Error('upload failed (' + r.status + ')');
+  }
+  function rnd() { return Math.random().toString(36).slice(2, 8); }
+  function compress(file, max, q) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), u = URL.createObjectURL(file);
+      img.onload = function () {
+        var s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(img.naturalWidth * s); cv.height = Math.round(img.naturalHeight * s);
+        var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+        cx.drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(u);
+        cv.toBlob(function (b) { b ? resolve(b) : reject(new Error('compress failed')); }, 'image/jpeg', q);
+      };
+      img.onerror = function () { URL.revokeObjectURL(u); reject(new Error('not an image')); };
+      img.src = u;
+    });
+  }
+  // message bodies: "[img]key" and "[voice]key|seconds"
+  function parseMedia(body) {
+    var m = /^\[(img|voice)\]([^|\s]+)(?:\|(\d+))?$/.exec(body || '');
+    return m ? { type: m[1], key: m[2], dur: +m[3] || 0 } : null;
+  }
+  function fmtDur(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+
+  // viewer
+  var viewerPhoto = null;
+  function openViewer(key, caption, photo) {
+    viewerPhoto = photo;
+    $('viewer-img').removeAttribute('src'); loadInto(key, $('viewer-img'));
+    $('viewer-cap').textContent = caption || '';
+    $('viewer-del').hidden = !(photo && myName() && (photo.uploader === myName() || iAmAdmin()));
+    $('viewer').hidden = false;
+  }
+  $('viewer-close').onclick = function () { $('viewer').hidden = true; };
+  $('viewer').onclick = function (e) { if (e.target === $('viewer')) $('viewer').hidden = true; };
+  $('viewer-del').onclick = function () {
+    var ph = viewerPhoto; if (!ph || !confirm('Delete this photo?')) return;
+    state.photos = state.photos.filter(function (x) { return x.id !== ph.id; });
+    save(); push({ t: 'photos', a: 'del', m: { id: ph.id } });
+    $('viewer').hidden = true; renderAlbum();
+  };
+
+  // album
+  function renderAlbum() {
+    var g = $('album-grid'); if (!g) return;
+    g.innerHTML = '';
+    if (!state.photos.length) { g.appendChild(el('p', 'muted', 'No photos yet.')); return; }
+    state.photos.slice().reverse().forEach(function (ph) {
+      var b = el('button', 'ph'); b.type = 'button'; b.setAttribute('aria-label', 'Photo by ' + ph.uploader);
+      loadInto(ph.thumb_url || ph.url, b);
+      b.onclick = function () { openViewer(ph.url, ph.uploader + (ph.caption ? ' · ' + ph.caption : ''), ph); };
+      g.appendChild(b);
+    });
+  }
+  $('album-add').onclick = function () { if (!myName() && !askName('Your name')) return; $('album-file').click(); };
+  $('album-file').onchange = async function () {
+    var files = Array.prototype.slice.call(this.files || []); this.value = '';
+    var st = $('album-status'), name = myName(), ok = 0;
+    for (var i = 0; i < files.length; i++) {
+      st.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
+      try {
+        var blob = await compress(files[i], 1600, 0.85), key = 'album/' + Date.now() + '-' + rnd() + '.jpg';
+        await b2Put(key, blob, 'image/jpeg');
+        var ph = { id: uid(), url: key, thumb_url: key, uploader: name, caption: '', created_at: nowIso() };
+        state.photos.push(ph); save(); push({ t: 'photos', a: 'up', r: ph }); ok++;
+        renderAlbum();
+      } catch (e) { st.textContent = 'Upload failed: ' + (e && e.message ? e.message : e); return; }
+    }
+    st.textContent = ok ? 'Added ' + ok + ' photo' + (ok > 1 ? 's' : '') + '.' : '';
+  };
+
+  // chat picture
+  $('chat-photo').onclick = function () { if (!myName() && !askName('Your name for chat')) return; $('chat-file').click(); };
+  $('chat-file').onchange = async function () {
+    var f = this.files && this.files[0]; this.value = ''; if (!f) return;
+    var btn = $('chat-photo'); btn.disabled = true; btn.textContent = '⏳';
+    try {
+      var blob = await compress(f, 1280, 0.8), key = 'chat/' + Date.now() + '-' + rnd() + '.jpg';
+      await b2Put(key, blob, 'image/jpeg');
+      sendMedia('[img]' + key);
+    } catch (e) { alert('Could not send picture: ' + (e && e.message ? e.message : e)); }
+    btn.disabled = false; btn.textContent = '📷';
+  };
+
+  // voice playback
+  var curAudio = null, curBtn = null;
+  function voiceBubble(md) {
+    var w = el('div', 'voice'), btn = el('button', 'vplay', '▶'), bar = el('div', 'vbar'), fill = el('i'), dur = el('span', 'vdur', fmtDur(md.dur));
+    btn.type = 'button'; bar.appendChild(fill);
+    w.appendChild(btn); w.appendChild(bar); w.appendChild(dur);
+    var au = null;
+    function stop() { btn.textContent = '▶'; }
+    function ensure() {
+      if (au) return Promise.resolve();
+      au = new Audio(); au.preload = 'metadata';
+      au.onended = function () { stop(); fill.style.width = '0'; };
+      au.onpause = stop;
+      au.onplay = function () { btn.textContent = '⏸'; };
+      au.ontimeupdate = function () {
+        var d = isFinite(au.duration) && au.duration ? au.duration : md.dur;
+        if (d) fill.style.width = Math.min(100, au.currentTime / d * 100) + '%';
+        dur.textContent = fmtDur(au.paused && !au.currentTime ? d : au.currentTime);
+      };
+      return getUrl(md.key).then(function (u) { au.src = u; });
+    }
+    function toggle(e) {
+      e.stopPropagation();
+      ensure().then(function () {
+        if (!au.paused) { au.pause(); return; }
+        if (curAudio && curAudio !== au) curAudio.pause();
+        curAudio = au;
+        return au.play();
+      }).catch(function () { stop(); });
+    }
+    btn.onclick = toggle;
+    bar.onclick = function (e) {
+      e.stopPropagation();
+      ensure().then(function () {
+        var d = isFinite(au.duration) && au.duration ? au.duration : md.dur, r = bar.getBoundingClientRect();
+        if (d) au.currentTime = d * clamp((e.clientX - r.left) / r.width, 0, 1);
+      });
+    };
+    w.onclick = function (e) { e.stopPropagation(); };
+    return w;
+  }
+
+  // voice recording
+  var rec = null;
+  function recStop(send) {
+    if (!rec) return;
+    var r = rec; rec = null; r.send = send;
+    clearInterval(r.timer);
+    $('rec-bar').hidden = true; $('chat-mic').classList.remove('on');
+    try { r.mr.stop(); } catch (e) {}
+    r.stream.getTracks().forEach(function (t) { t.stop(); });
+  }
+  $('rec-cancel').onclick = function () { recStop(false); };
+  $('chat-mic').onclick = async function () {
+    if (rec) { recStop(true); return; }
+    if (!myName() && !askName('Your name for chat')) return;
+    if (!navigator.mediaDevices || !window.MediaRecorder) { alert('Voice recording is not supported in this browser.'); return; }
+    var stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { alert('Microphone permission is needed to record.'); return; }
+    var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].filter(function (t) { return MediaRecorder.isTypeSupported(t); })[0] || '';
+    var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    var type = (mr.mimeType || mime || 'audio/webm').split(';')[0], ext = /mp4/.test(type) ? 'mp4' : 'webm';
+    var r = { mr: mr, stream: stream, chunks: [], start: Date.now(), send: false };
+    mr.ondataavailable = function (e) { if (e.data && e.data.size) r.chunks.push(e.data); };
+    mr.onstop = async function () {
+      if (!r.send || !r.chunks.length) return;
+      var secs = (Date.now() - r.start) / 1000;
+      if (secs < 0.7) return;
+      var btn = $('chat-mic'); btn.disabled = true; btn.textContent = '⏳';
+      try {
+        var key = 'voice/' + Date.now() + '.' + ext;
+        await b2Put(key, new Blob(r.chunks, { type: type }), type);
+        sendMedia('[voice]' + key + '|' + Math.round(secs));
+      } catch (e) { alert('Could not send voice message: ' + (e && e.message ? e.message : e)); }
+      btn.disabled = false; btn.textContent = '🎤';
+    };
+    rec = r; mr.start();
+    $('rec-bar').hidden = false; $('chat-mic').classList.add('on'); $('rec-time').textContent = '0:00';
+    r.timer = setInterval(function () {
+      var s = (Date.now() - r.start) / 1000; $('rec-time').textContent = fmtDur(s);
+      if (s >= 300) recStop(true);
+    }, 250);
   };
   function memberNames() {
     var seen = {}, out = [];
@@ -1150,7 +1377,7 @@
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat(); renderMembers();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat(); renderMembers(); renderAlbum();
   }
   renderTeamName();
   renderTeamPic();
