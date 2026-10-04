@@ -2,29 +2,52 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14532d">
+<meta name="description" content="فريق الرشاد الفݣيݣي PA – team schedule, lineup, events and chat">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="الرشاد PA">
 <title>فريق الرشاد الفݣيݣي PA</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <header>
-  <h1>⚽ فريق الرشاد الفݣيݣي PA</h1>
+  <div class="brand">
+    <span class="ball">⚽</span>
+    <h1 lang="ar" dir="rtl">فريق الرشاد الفݣيݣي <span class="pa">PA</span></h1>
+    <span id="sync" class="sync off">● Local only</span>
+  </div>
   <nav>
-    <button data-tab="practices" class="active">Practices</button>
-    <button data-tab="players">Players</button>
-    <button data-tab="avail">Availability</button>
-    <button data-tab="teams">Teams</button>
-    <button data-tab="lineup">Lineup</button>
+    <button data-tab="practices" class="active">📅 Practices</button>
+    <button data-tab="players">👥 Players</button>
+    <button data-tab="avail">✅ Availability</button>
+    <button data-tab="teams">🎽 Teams</button>
+    <button data-tab="lineup">📋 Lineup</button>
+    <button data-tab="events">🎉 Events</button>
+    <button data-tab="chat">💬 Chat <b id="chat-dot" class="dot" style="display:none">0</b></button>
   </nav>
 </header>
 <main>
   <section id="practices" class="tab active">
     <form id="practice-form" class="card">
       <h2>New practice</h2>
-      <label>Date <input type="date" id="p-date" required></label>
-      <label>Time <input type="time" id="p-time" required></label>
-      <label>Location / notes <input type="text" id="p-place" placeholder="Field 3, bring water"></label>
+      <div class="grid2">
+        <label>Date <input type="date" id="p-date" required></label>
+        <label>Time <input type="time" id="p-time" required></label>
+      </div>
+      <label>Location <input type="text" id="p-place" placeholder="Field 3"></label>
+      <label>Field address <input type="text" id="p-addr" placeholder="Street, city (optional)"></label>
+      <label>Map link <input type="url" id="p-map" placeholder="https://maps.google.com/… (optional)"></label>
+      <label>Notes <input type="text" id="p-notes" placeholder="Optional"></label>
       <button class="primary" type="submit">Add practice</button>
     </form>
     <h2>Upcoming</h2>
@@ -45,7 +68,7 @@
   <section id="avail" class="tab">
     <select id="avail-practice" class="practice-select"></select>
     <div id="avail-counts" class="counts"></div>
-    <p class="muted">Tap a player to cycle: maybe → available → unavailable.</p>
+    <p class="muted">Tap a player to cycle: maybe → available → unavailable → injured 🤕.</p>
     <ul id="avail-list" class="list"></ul>
   </section>
 
@@ -64,11 +87,12 @@
     </div>
     <h3>Available players</h3>
     <ul id="pool" class="list"></ul>
-    <h3>Unavailable</h3>
+    <h3>Unavailable / injured</h3>
     <ul id="out" class="list"></ul>
   </section>
 
   <section id="lineup" class="tab">
+    <select id="lineup-practice" class="practice-select"></select>
     <div class="lu-bar">
       <button id="lu-move" class="pick active">Move</button>
       <button id="lu-pen" class="pick">Pen</button>
@@ -93,10 +117,39 @@
       </svg>
       <svg id="lu-draw" class="draw" viewBox="0 0 100 150" preserveAspectRatio="none"></svg>
       <div id="lu-players"></div>
-      <div id="lu-hint" class="hint">Tap a player below, then tap where they play</div>
+      <div id="lu-hint" class="hint">Tap an available player below, then tap where they play</div>
     </div>
     <p class="muted" id="lu-help"></p>
     <div id="lu-roster" class="chips"></div>
+  </section>
+
+  <section id="events" class="tab">
+    <form id="event-form" class="card">
+      <h2>New event</h2>
+      <label>Title <input type="text" id="e-title" placeholder="Season party, fundraiser…" required></label>
+      <div class="grid2">
+        <label>Date <input type="date" id="e-date"></label>
+        <label>Time <input type="time" id="e-time"></label>
+      </div>
+      <label>Venue name <input type="text" id="e-venue" placeholder="Community hall"></label>
+      <label>Venue address <input type="text" id="e-addr" placeholder="Street, city"></label>
+      <label>Map link <input type="url" id="e-map" placeholder="https://maps.google.com/…"></label>
+      <label>Notes <input type="text" id="e-notes" placeholder="Optional"></label>
+      <button class="primary" type="submit">Add event</button>
+    </form>
+    <h2>Events</h2>
+    <ul id="event-list" class="list"></ul>
+  </section>
+
+  <section id="chat" class="tab">
+    <div class="chat-wrap">
+      <div class="chat-head"><span>💬 Team chat</span><button id="chat-name" class="link light" type="button">Change name</button></div>
+      <div id="chat-msgs" class="chat-msgs"></div>
+      <form id="chat-form" class="chat-bar">
+        <input id="chat-input" type="text" placeholder="Type a message" autocomplete="off" aria-label="Message">
+        <button class="send" type="submit" aria-label="Send">➤</button>
+      </form>
+    </div>
   </section>
 </main>
 <script src="app.js"></script>

@@ -1,19 +1,23 @@
 (function () {
   'use strict';
-  var KEY = 'soccerScheduler.v1';
-  var state = load();
-  var pickTeam = 'red';
+  var SB_URL = 'https://ulokpqtouottaflqjwcp.supabase.co';
+  var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsb2twcXRvdW90dGFmbHFqd2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNzIwNzAsImV4cCI6MjEwNjY0ODA3MH0.Ldqr-4WgX06Ca4k_-AsBsS_juj7OJVFdLkpRLXTLMGU';
+  var KEY = 'soccerScheduler.v2', OLD_KEY = 'soccerScheduler.v1', NAME_KEY = 'rf.name', NOTIF_KEY = 'rf.notifAsked';
+  var sb = null;
+  try { if (window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY); } catch (e) { sb = null; }
 
-  function load() {
-    try {
-      var s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.practices) return s;
-    } catch (e) {}
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, lineup: { pos: {}, strokes: [] } };
+  var pickTeam = 'red';
+  var openBring = {};
+  var state = load();
+
+  // ---------- helpers ----------
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+    });
   }
-  if (!state.lineup) state.lineup = { pos: {}, strokes: [] };
-  function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
-  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function isUuid(s) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || ''); }
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -21,74 +25,319 @@
     if (text != null) e.textContent = text;
     return e;
   }
-  function getAvail(pid, plid) { return (state.avail[pid] || {})[plid] || 'maybe'; }
-  function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
-  function sortKey(p) { return p.date + ' ' + p.time; }
-  function fmt(p) {
-    var d = new Date(p.date + 'T' + p.time);
-    if (isNaN(d)) return p.date + ' ' + p.time;
-    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) +
-      ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  function nowIso() { return new Date().toISOString(); }
+  function myName() { return localStorage.getItem(NAME_KEY) || ''; }
+  function askName(msg) {
+    var n = (prompt(msg, myName()) || '').trim();
+    if (n) localStorage.setItem(NAME_KEY, n);
+    return n;
   }
-  function isPast(p) { return new Date(p.date + 'T' + p.time) < new Date(); }
+  function safeUrl(u) { return /^https?:\/\//i.test((u || '').trim()) ? u.trim() : null; }
+  function mapsHref(url, addr) {
+    var u = safeUrl(url);
+    if (u) return u;
+    if (addr && addr.trim()) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr.trim());
+    return null;
+  }
+  function mapsBtn(url, addr) {
+    var h = mapsHref(url, addr);
+    if (!h) return null;
+    var a = el('a', 'maps-btn', '📍 Open in Maps');
+    a.href = h; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    return a;
+  }
+
+  // ---------- state / persistence ----------
+  function blank() {
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [],
+      lineup: { pos: {}, strokes: [] }, outbox: [] };
+  }
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.practices) { return Object.assign(blank(), s); }
+    } catch (e) {}
+    return migrate();
+  }
+  // Convert the v1 localStorage data (non-uuid ids, yes/no statuses) and queue it for upload.
+  function migrate() {
+    var s = blank(), o = null;
+    try { o = JSON.parse(localStorage.getItem(OLD_KEY)); } catch (e) {}
+    if (!o || !o.practices) return s;
+    var map = {};
+    function id(x) { if (!map[x]) map[x] = isUuid(x) ? x : uid(); return map[x]; }
+    var ST = { yes: 'available', no: 'unavailable', maybe: 'maybe' };
+    s.players = (o.players || []).map(function (p) { return { id: id(p.id), name: p.name }; });
+    s.practices = o.practices.map(function (p) {
+      return { id: id(p.id), date: p.date, time: p.time, location: p.place || '', field_address: '', field_map_url: '', notes: '' };
+    });
+    Object.keys(o.avail || {}).forEach(function (pid) {
+      s.avail[id(pid)] = {};
+      Object.keys(o.avail[pid]).forEach(function (pl) { s.avail[id(pid)][id(pl)] = ST[o.avail[pid][pl]] || 'maybe'; });
+    });
+    Object.keys(o.teams || {}).forEach(function (pid) {
+      s.teams[id(pid)] = {};
+      Object.keys(o.teams[pid]).forEach(function (pl) { s.teams[id(pid)][id(pl)] = o.teams[pid][pl]; });
+    });
+    s.sel = o.sel ? id(o.sel) : null;
+    var L = o.lineup || { pos: {}, strokes: [] };
+    Object.keys(L.pos || {}).forEach(function (pl) { s.lineup.pos[id(pl)] = L.pos[pl]; });
+    s.lineup.strokes = L.strokes || [];
+    s.players.forEach(function (p) { s.outbox.push({ t: 'players', a: 'up', r: { id: p.id, name: p.name, created_at: nowIso() } }); });
+    s.practices.forEach(function (p) { s.outbox.push({ t: 'practices', a: 'up', r: practiceRow(p) }); });
+    Object.keys(s.avail).forEach(function (pid) {
+      Object.keys(s.avail[pid]).forEach(function (pl) { s.outbox.push(availOp(pid, pl, s.avail[pid][pl])); });
+    });
+    Object.keys(s.lineup.pos).forEach(function (pl) { s.outbox.push(posOp(pl, s.lineup.pos[pl])); });
+    return s;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  function practiceRow(p) {
+    return { id: p.id, date: p.date, time: p.time, location: p.location || null, field_address: p.field_address || null,
+      field_map_url: p.field_map_url || null, notes: p.notes || null, created_at: p.created_at || nowIso() };
+  }
+  function availOp(pid, plid, status) {
+    return { t: 'availability', a: 'up', c: 'practice_id,player_id', r: { practice_id: pid, player_id: plid, status: status } };
+  }
+  function posOp(plid, pos) {
+    return { t: 'lineup_positions', a: 'up', c: 'player_id', r: { player_id: plid, x: pos.x, y: pos.y, updated_at: nowIso() } };
+  }
+
+  // ---------- sync (outbox -> Supabase, then pull) ----------
+  var flushing = false, syncState = 'local';
+  function setSync(s) {
+    syncState = s;
+    var b = $('sync');
+    var T = { synced: ['● Synced', 'ok'], offline: ['● Offline – saved locally', 'off'], setup: ['● Setup needed', 'warn'], local: ['● Local only', 'off'], busy: ['● Syncing…', 'ok'] };
+    b.textContent = T[s][0]; b.className = 'sync ' + T[s][1];
+  }
+  function push(op) { state.outbox.push(op); save(); flush(); }
+  function exec(op) {
+    var q = sb.from(op.t);
+    if (op.a === 'up') return q.upsert(op.r, op.c ? { onConflict: op.c } : undefined);
+    q = q.delete();
+    Object.keys(op.m).forEach(function (k) { q = Array.isArray(op.m[k]) ? q.in(k, op.m[k]) : q.eq(k, op.m[k]); });
+    return q;
+  }
+  function isNetErr(res) { return res.status === 0 || /fetch|network/i.test(res.error.message || ''); }
+  async function flush() {
+    if (flushing) return;
+    if (!sb || !navigator.onLine) { setSync(sb ? 'offline' : 'local'); return; }
+    flushing = true;
+    try {
+      while (state.outbox.length) {
+        var res = await exec(state.outbox[0]);
+        if (res.error) {
+          if (isNetErr(res)) { setSync('offline'); return; }
+          if (res.error.code === 'PGRST205' || res.error.code === '42P01') { setSync('setup'); return; }
+          console.warn('dropping rejected op', state.outbox[0], res.error);
+        }
+        state.outbox.shift(); save();
+      }
+      await pull();
+    } catch (e) { setSync('offline'); }
+    finally { flushing = false; }
+  }
+  async function pull() {
+    setSync('busy');
+    var T = ['players', 'practices', 'availability', 'events', 'volunteer_items', 'assignments', 'chat_messages', 'lineup_positions'];
+    var res = await Promise.all(T.map(function (t) {
+      var q = sb.from(t).select('*');
+      if (t === 'chat_messages') q = q.order('created_at', { ascending: false }).limit(300);
+      return q;
+    }));
+    for (var i = 0; i < res.length; i++) {
+      if (res[i].error) { setSync(isNetErr(res[i]) ? 'offline' : 'setup'); return; }
+    }
+    if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
+    var d = res.map(function (r) { return r.data || []; });
+    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name }; });
+    state.practices = d[1].map(function (r) {
+      return { id: r.id, date: r.date, time: (r.time || '').slice(0, 5), location: r.location || '', field_address: r.field_address || '',
+        field_map_url: r.field_map_url || '', notes: r.notes || '', created_at: r.created_at };
+    });
+    state.avail = {};
+    d[2].forEach(function (r) { (state.avail[r.practice_id] = state.avail[r.practice_id] || {})[r.player_id] = r.status; });
+    state.events = d[3].map(function (r) {
+      return { id: r.id, title: r.title, date: r.date || '', time: (r.time || '').slice(0, 5), venue_name: r.venue_name || '',
+        venue_address: r.venue_address || '', venue_map_url: r.venue_map_url || '', notes: r.notes || '', created_at: r.created_at };
+    });
+    state.items = d[4].sort(byCreated);
+    state.assignments = d[5].sort(byCreated);
+    state.chat = d[6].sort(byCreated).map(chatRow);
+    state.lineup.pos = {};
+    d[7].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
+    save(); setSync('synced');
+    renderAll(true);
+  }
+  function byCreated(a, b) { return (a.created_at || '') < (b.created_at || '') ? -1 : 1; }
+  function chatRow(r) { return { id: r.id, sender: r.sender, body: r.body, created_at: r.created_at }; }
+
+  function subscribe() {
+    if (!sb) return;
+    sb.channel('chat-live').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) {
+      addChat(chatRow(p.new), true);
+    }).subscribe();
+  }
+
+  // ---------- date helpers ----------
+  function sortKey(p) { return (p.date || '') + ' ' + (p.time || ''); }
+  function stamp(p) { return new Date((p.date || '') + 'T' + (p.time || '00:00')); }
+  function fmt(p) {
+    var d = stamp(p);
+    if (isNaN(d)) return [p.date, p.time].filter(Boolean).join(' ');
+    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) +
+      (p.time ? ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '');
+  }
+  function isPast(p) { return stamp(p) < new Date(); }
+  function bySort(a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; }
   function selected() {
-    var list = state.practices.slice().sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
+    var list = state.practices.slice().sort(bySort);
     var found = list.filter(function (p) { return p.id === state.sel; })[0];
     if (found) return found;
-    var up = list.filter(function (p) { return !isPast(p); })[0] || list[list.length - 1];
-    return up || null;
+    return list.filter(function (p) { return !isPast(p); })[0] || list[list.length - 1] || null;
   }
 
-  // Tabs
-  var tabBtns = document.querySelectorAll('nav button');
-  tabBtns.forEach(function (b) {
-    b.onclick = function () {
-      tabBtns.forEach(function (x) { x.classList.toggle('active', x === b); });
-      document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.id === b.dataset.tab); });
-      render();
-    };
-  });
+  // ---------- status model ----------
+  var NEXT = { maybe: 'available', available: 'unavailable', unavailable: 'injured', injured: 'maybe' };
+  var LABEL = { available: 'Available', unavailable: 'Unavailable', injured: 'Injured', maybe: 'Maybe' };
+  var ICON = { available: '✅', unavailable: '🚫', injured: '🤕', maybe: '❔' };
+  function getAvail(pid, plid) { return (state.avail[pid] || {})[plid] || 'maybe'; }
+  function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
+  function teamable(a) { return a === 'maybe' || a === 'available'; }
 
-  // Practices
+  // ---------- tabs ----------
+  var tabBtns = document.querySelectorAll('nav button');
+  function showTab(name) {
+    tabBtns.forEach(function (x) { x.classList.toggle('active', x.dataset.tab === name); });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.id === name); });
+    document.body.classList.toggle('on-chat', name === 'chat');
+    if (name === 'chat') openChat();
+    renderAll();
+    window.scrollTo(0, 0);
+    var b = document.querySelector('nav button.active');
+    if (b && b.scrollIntoView) b.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  tabBtns.forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
+
+  // ---------- bring list (practices + events) ----------
+  function bringList(owner) {
+    var key = owner.practice_id ? 'practice_id' : 'event_id';
+    var oid = owner[key];
+    var wrap = el('div', 'sub');
+    wrap.appendChild(el('h4', null, '🎒 Bring list'));
+    var items = state.items.filter(function (i) { return i[key] === oid; });
+    var ul = el('ul', 'bring');
+    if (!items.length) ul.appendChild(el('li', 'muted', 'Nothing yet — add what is needed.'));
+    items.forEach(function (it) {
+      var li = el('li', it.volunteer_name ? 'taken' : '');
+      var info = el('div', 'grow');
+      var t = el('strong', null, it.item);
+      if (it.quantity) t.appendChild(el('span', 'qty', '× ' + it.quantity.replace(/^[x×]\s*/i, '')));
+      info.appendChild(t);
+      if (it.volunteer_name) info.appendChild(el('small', null, '✓ ' + it.volunteer_name + ' is bringing it'));
+      var btn = el('button', 'vol' + (it.volunteer_name ? ' on' : ''), it.volunteer_name ? 'Withdraw' : "I'll bring it");
+      btn.onclick = function () {
+        if (it.volunteer_name) it.volunteer_name = null;
+        else {
+          var n = askName('Your name?');
+          if (!n) return;
+          it.volunteer_name = n;
+        }
+        pushItem(it); renderAll();
+      };
+      var del = el('button', 'del sm', '✕');
+      del.setAttribute('aria-label', 'Remove item');
+      del.onclick = function () {
+        state.items = state.items.filter(function (x) { return x.id !== it.id; });
+        push({ t: 'volunteer_items', a: 'del', m: { id: it.id } }); renderAll();
+      };
+      li.appendChild(info); li.appendChild(btn); li.appendChild(del);
+      ul.appendChild(li);
+    });
+    wrap.appendChild(ul);
+    var f = el('form', 'inline');
+    var i1 = el('input'); i1.placeholder = 'Item (e.g. Water bottles)'; i1.required = true;
+    var i2 = el('input', 'qty-in'); i2.placeholder = 'Qty'; i2.setAttribute('aria-label', 'Quantity');
+    var ad = el('button', 'primary sm', 'Add'); ad.type = 'submit';
+    f.appendChild(i1); f.appendChild(i2); f.appendChild(ad);
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      if (!i1.value.trim()) return;
+      var it = { id: uid(), practice_id: null, event_id: null, item: i1.value.trim(), quantity: i2.value.trim(), volunteer_name: null, created_at: nowIso() };
+      it[key] = oid;
+      state.items.push(it); pushItem(it); renderAll();
+    };
+    wrap.appendChild(f);
+    return wrap;
+  }
+  function pushItem(it) {
+    push({ t: 'volunteer_items', a: 'up', r: { id: it.id, practice_id: it.practice_id || null, event_id: it.event_id || null, item: it.item,
+      quantity: it.quantity || null, volunteer_name: it.volunteer_name || null, created_at: it.created_at } });
+  }
+  function toggleBring(id, content) {
+    var b = el('button', 'link', openBring[id] ? '▾ Bring list' : '▸ Bring list');
+    b.onclick = function () { openBring[id] = !openBring[id]; renderAll(); };
+    return b;
+  }
+
+  // ---------- practices ----------
   $('practice-form').onsubmit = function (e) {
     e.preventDefault();
-    var p = { id: uid(), date: $('p-date').value, time: $('p-time').value, place: $('p-place').value.trim() };
+    var p = { id: uid(), date: $('p-date').value, time: $('p-time').value, location: $('p-place').value.trim(),
+      field_address: $('p-addr').value.trim(), field_map_url: $('p-map').value.trim(), notes: $('p-notes').value.trim(), created_at: nowIso() };
+    if (p.field_map_url && !safeUrl(p.field_map_url)) { alert('Map link must start with http:// or https://'); return; }
     state.practices.push(p);
     if (!state.sel) state.sel = p.id;
-    save(); e.target.reset(); render();
+    push({ t: 'practices', a: 'up', r: practiceRow(p) });
+    e.target.reset(); renderAll();
   };
   function practiceItem(p) {
-    var li = el('li');
-    var info = el('div');
+    var li = el('li', 'card-item');
+    var top = el('div', 'top');
+    var info = el('div', 'grow');
     info.appendChild(el('strong', null, fmt(p)));
-    if (p.place) info.appendChild(el('small', null, p.place));
+    if (p.location) info.appendChild(el('small', null, '⚽ ' + p.location));
+    if (p.field_address) info.appendChild(el('small', null, '📌 ' + p.field_address));
+    if (p.notes) info.appendChild(el('small', 'notes', p.notes));
     var del = el('button', 'del', '✕');
     del.setAttribute('aria-label', 'Delete practice');
     del.onclick = function () {
       if (!confirm('Delete this practice?')) return;
       state.practices = state.practices.filter(function (x) { return x.id !== p.id; });
+      state.items = state.items.filter(function (x) { return x.practice_id !== p.id; });
       delete state.avail[p.id]; delete state.teams[p.id];
-      save(); render();
+      push({ t: 'practices', a: 'del', m: { id: p.id } }); renderAll();
     };
-    li.appendChild(info); li.appendChild(del);
+    top.appendChild(info); top.appendChild(del);
+    li.appendChild(top);
+    var acts = el('div', 'acts');
+    var mb = mapsBtn(p.field_map_url, p.field_address);
+    if (mb) acts.appendChild(mb);
+    acts.appendChild(toggleBring(p.id));
+    li.appendChild(acts);
+    if (openBring[p.id]) li.appendChild(bringList({ practice_id: p.id }));
     return li;
   }
   function renderPractices() {
-    var sorted = state.practices.slice().sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
+    var sorted = state.practices.slice().sort(bySort);
     var up = $('upcoming'), past = $('past');
     up.innerHTML = ''; past.innerHTML = '';
     sorted.filter(function (p) { return !isPast(p); }).forEach(function (p) { up.appendChild(practiceItem(p)); });
     sorted.filter(isPast).reverse().forEach(function (p) { past.appendChild(practiceItem(p)); });
-    if (!up.children.length) up.appendChild(el('li', 'muted', 'No upcoming practices.'));
+    if (!up.children.length) up.appendChild(el('li', 'muted empty', 'No upcoming practices.'));
   }
 
-  // Players
+  // ---------- players ----------
   $('player-form').onsubmit = function (e) {
     e.preventDefault();
     var name = $('player-name').value.trim();
     if (!name) return;
-    state.players.push({ id: uid(), name: name });
-    save(); e.target.reset(); render();
+    var p = { id: uid(), name: name };
+    state.players.push(p);
+    push({ t: 'players', a: 'up', r: { id: p.id, name: name, created_at: nowIso() } });
+    e.target.reset(); renderAll();
   };
   function renderPlayers() {
     var ul = $('player-list'); ul.innerHTML = '';
@@ -103,59 +352,57 @@
         Object.keys(state.avail).forEach(function (k) { delete state.avail[k][pl.id]; });
         Object.keys(state.teams).forEach(function (k) { delete state.teams[k][pl.id]; });
         delete state.lineup.pos[pl.id];
-        save(); render();
+        push({ t: 'players', a: 'del', m: { id: pl.id } }); renderAll();
       };
       li.appendChild(del); ul.appendChild(li);
     });
   }
 
-  // Practice selectors
+  // ---------- practice selectors ----------
   function fillSelect(sel) {
     var cur = selected();
     sel.innerHTML = '';
     if (!state.practices.length) { sel.appendChild(new Option('No practices yet', '')); return null; }
-    state.practices.slice().sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; }).forEach(function (p) {
-      var o = new Option(fmt(p) + (p.place ? ' – ' + p.place : ''), p.id);
+    state.practices.slice().sort(bySort).forEach(function (p) {
+      var o = new Option(fmt(p) + (p.location ? ' – ' + p.location : ''), p.id);
       o.selected = cur && cur.id === p.id;
       sel.appendChild(o);
     });
     return cur;
   }
-  ['avail-practice', 'teams-practice'].forEach(function (id) {
-    $(id).onchange = function () { state.sel = this.value; save(); render(); };
+  ['avail-practice', 'teams-practice', 'lineup-practice'].forEach(function (id) {
+    $(id).onchange = function () { state.sel = this.value; save(); renderAll(); };
   });
 
-  // Availability
-  var NEXT = { maybe: 'yes', yes: 'no', no: 'maybe' };
-  var LABEL = { yes: 'Available', no: 'Unavailable', maybe: 'Maybe' };
+  // ---------- availability ----------
   function renderAvail() {
     var p = fillSelect($('avail-practice'));
     var ul = $('avail-list'), counts = $('avail-counts');
     ul.innerHTML = ''; counts.innerHTML = '';
-    if (!p) return;
-    var n = { yes: 0, no: 0, maybe: 0 };
+    if (!p) { ul.appendChild(el('li', 'muted empty', 'Create a practice first.')); return; }
+    var n = { available: 0, maybe: 0, unavailable: 0, injured: 0 };
     state.players.forEach(function (pl) { n[getAvail(p.id, pl.id)]++; });
-    ['yes', 'maybe', 'no'].forEach(function (k) {
+    ['available', 'maybe', 'unavailable', 'injured'].forEach(function (k) {
       var d = el('div', k); d.appendChild(el('span', null, n[k])); d.appendChild(document.createTextNode(LABEL[k]));
       counts.appendChild(d);
     });
-    if (!state.players.length) ul.appendChild(el('li', 'muted', 'Add players first.'));
+    if (!state.players.length) ul.appendChild(el('li', 'muted empty', 'Add players first.'));
     state.players.forEach(function (pl) {
       var a = getAvail(p.id, pl.id);
       var li = el('li', a);
-      li.appendChild(el('strong', null, pl.name));
-      li.appendChild(el('span', 'badge ' + a, LABEL[a]));
+      li.appendChild(el('strong', null, (a === 'injured' ? '🤕 ' : '') + pl.name));
+      li.appendChild(el('span', 'badge ' + a, ICON[a] + ' ' + LABEL[a]));
       li.onclick = function () {
         var m = state.avail[p.id] = state.avail[p.id] || {};
         m[pl.id] = NEXT[a];
-        if (m[pl.id] === 'no' && state.teams[p.id]) delete state.teams[p.id][pl.id];
-        save(); renderAvail();
+        if (!teamable(m[pl.id]) && state.teams[p.id]) delete state.teams[p.id][pl.id];
+        push(availOp(p.id, pl.id, m[pl.id])); renderAll();
       };
       ul.appendChild(li);
     });
   }
 
-  // Teams
+  // ---------- teams ----------
   function setTeam(p, plid, team) {
     var t = state.teams[p.id] = state.teams[p.id] || {};
     if (team) t[plid] = team; else delete t[plid];
@@ -170,8 +417,8 @@
     if (p) {
       state.players.forEach(function (pl) {
         var a = getAvail(p.id, pl.id), t = teamOf(p.id, pl.id);
-        if (a === 'no') {
-          $('out').appendChild(el('li', null, pl.name));
+        if (!teamable(a)) {
+          $('out').appendChild(el('li', null, (a === 'injured' ? '🤕 ' : '') + pl.name + ' · ' + LABEL[a]));
         } else if (t) {
           cnt[t]++;
           var li = el('li', null, pl.name + (a === 'maybe' ? ' ?' : ''));
@@ -201,14 +448,14 @@
     var p = selected(); if (!p) return;
     var t = state.teams[p.id] = state.teams[p.id] || {};
     var c = { red: 0, yellow: 0 };
-    state.players.forEach(function (pl) { if (t[pl.id] && getAvail(p.id, pl.id) !== 'no') c[t[pl.id]]++; });
-    state.players.filter(function (pl) { return getAvail(p.id, pl.id) !== 'no' && !t[pl.id]; })
+    state.players.forEach(function (pl) { if (t[pl.id] && teamable(getAvail(p.id, pl.id))) c[t[pl.id]]++; });
+    state.players.filter(function (pl) { return teamable(getAvail(p.id, pl.id)) && !t[pl.id]; })
       .sort(function () { return Math.random() - 0.5; })
       .forEach(function (pl) { var k = c.red <= c.yellow ? 'red' : 'yellow'; t[pl.id] = k; c[k]++; });
     save(); renderTeams();
   };
 
-  // Lineup board
+  // ---------- lineup board ----------
   var luMode = 'move', luSel = null, luDrag = null, luStroke = null;
   var NS = 'http://www.w3.org/2000/svg';
   function initials(n) {
@@ -220,7 +467,13 @@
     var r = $('field').getBoundingClientRect();
     return { x: clamp((e.clientX - r.left) / r.width * 100, 5, 95), y: clamp((e.clientY - r.top) / r.height * 100, 4, 96) };
   }
-  function onField() { return state.players.filter(function (p) { return state.lineup.pos[p.id]; }); }
+  function lineupPool() {
+    var p = selected();
+    if (!p) return [];
+    return state.players.filter(function (pl) { return getAvail(p.id, pl.id) === 'available'; });
+  }
+  function onField() { return lineupPool().filter(function (p) { return state.lineup.pos[p.id]; }); }
+  function savePos(plid) { save(); push(posOp(plid, state.lineup.pos[plid])); }
   function pathPts(s) { return s.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' '); }
   function drawStroke(s) {
     var pl = document.createElementNS(NS, 'polyline');
@@ -230,24 +483,28 @@
     return pl;
   }
   function renderLineup() {
+    var p = fillSelect($('lineup-practice'));
     var f = $('field'), lp = $('lu-players'), L = state.lineup;
     f.classList.toggle('pen', luMode === 'pen');
     $('lu-move').classList.toggle('active', luMode === 'move');
     $('lu-pen').classList.toggle('active', luMode === 'pen');
     lp.innerHTML = '';
-    var on = onField();
+    var pool = lineupPool(), on = onField();
     on.forEach(function (pl) {
       var pos = L.pos[pl.id];
       var d = el('div', 'pl' + (luSel === pl.id ? ' sel' : ''));
       d.dataset.id = pl.id;
       d.style.left = pos.x + '%'; d.style.top = pos.y + '%';
-      d.appendChild(el('span', 'jersey', pl.num || initials(pl.name)));
+      d.appendChild(el('span', 'jersey', initials(pl.name)));
       d.appendChild(el('span', 'nm', pl.name.split(/\s+/)[0]));
       if (luSel === pl.id) {
         var x = el('button', 'rm', '×');
         x.setAttribute('aria-label', 'Remove ' + pl.name + ' from field');
         x.onpointerdown = function (e) { e.stopPropagation(); };
-        x.onclick = function (e) { e.stopPropagation(); delete L.pos[pl.id]; luSel = null; save(); renderLineup(); };
+        x.onclick = function (e) {
+          e.stopPropagation(); delete L.pos[pl.id]; luSel = null; save();
+          push({ t: 'lineup_positions', a: 'del', m: { player_id: pl.id } }); renderLineup();
+        };
         d.appendChild(x);
       }
       lp.appendChild(d);
@@ -256,14 +513,15 @@
     L.strokes.forEach(drawStroke);
     $('lu-count').textContent = on.length + ' on';
     $('lu-hint').style.display = on.length || L.strokes.length ? 'none' : '';
-    var help = $('lu-help');
-    help.textContent = luMode === 'pen' ? 'Pen: draw lines on the field. Switch to Move to place players.'
+    $('lu-help').textContent = luMode === 'pen' ? 'Pen: draw lines on the field. Switch to Move to place players.'
       : luSel ? 'Now tap a spot on the field (or drag a placed player).' : 'Tap a player, then tap the field. Tap a placed player to select or remove.';
     var ro = $('lu-roster'); ro.innerHTML = '';
-    if (!state.players.length) ro.appendChild(el('p', 'muted', 'Add players in the Players tab first.'));
-    state.players.forEach(function (pl) {
+    if (!p) ro.appendChild(el('p', 'muted', 'Create a practice first.'));
+    else if (!state.players.length) ro.appendChild(el('p', 'muted', 'Add players in the Players tab first.'));
+    else if (!pool.length) ro.appendChild(el('p', 'muted', 'No players marked Available for this practice. Set them in the Availability tab.'));
+    pool.forEach(function (pl) {
       var c = el('button', 'lchip' + (L.pos[pl.id] ? ' on' : '') + (luSel === pl.id ? ' sel' : ''));
-      c.appendChild(el('span', 'jersey', pl.num || initials(pl.name)));
+      c.appendChild(el('span', 'jersey', initials(pl.name)));
       c.appendChild(el('span', null, pl.name));
       c.onclick = function () { luSel = luSel === pl.id ? null : pl.id; renderLineup(); };
       ro.appendChild(c);
@@ -290,7 +548,7 @@
       }
       if (luSel) {
         state.lineup.pos[luSel] = { x: p.x, y: p.y };
-        luSel = null; save(); renderLineup();
+        var id = luSel; luSel = null; savePos(id); renderLineup();
       }
     });
     f.addEventListener('pointermove', function (e) {
@@ -312,7 +570,7 @@
         luStroke = null; save(); renderLineup();
       } else if (luDrag) {
         var d = luDrag; luDrag = null;
-        if (d.moved) { luSel = d.id; save(); }
+        if (d.moved) { luSel = d.id; savePos(d.id); }
         else luSel = d.wasSel ? null : d.id;
         renderLineup();
       }
@@ -323,15 +581,15 @@
   $('lu-move').onclick = function () { luMode = 'move'; renderLineup(); };
   $('lu-pen').onclick = function () { luMode = 'pen'; luSel = null; renderLineup(); };
   $('lu-clear').onclick = function () {
-    if ((onField().length || state.lineup.strokes.length) && !confirm('Clear all players and drawings from the board?')) return;
-    state.lineup = { pos: {}, strokes: [] }; luSel = null; save(); renderLineup();
+    var ids = Object.keys(state.lineup.pos);
+    if ((ids.length || state.lineup.strokes.length) && !confirm('Clear all players and drawings from the board?')) return;
+    state.lineup = { pos: {}, strokes: [] }; luSel = null; save();
+    if (ids.length) push({ t: 'lineup_positions', a: 'del', m: { player_id: ids } });
+    renderLineup();
   };
   $('lu-auto').onclick = function () {
     var list = onField();
-    if (!list.length) {
-      var p = selected();
-      list = state.players.filter(function (pl) { return !p || getAvail(p.id, pl.id) !== 'no'; }).slice(0, 11);
-    }
+    if (!list.length) list = lineupPool().slice(0, 11);
     var n = list.length; if (!n) return;
     var rows, gk = n !== 6;
     if (n === 6) rows = [1, 2, 3];
@@ -340,14 +598,203 @@
       rows = [att, mid, def].filter(function (c) { return c > 0; });
     }
     if (gk) rows.push(1);
-    var pos = {}, i = 0;
+    var i = 0;
     rows.forEach(function (c, ri) {
       var y = rows.length === 1 ? 50 : 20 + ri * (72 / (rows.length - 1));
-      for (var j = 0; j < c; j++) pos[list[i++].id] = { x: (j + 1) / (c + 1) * 100, y: y };
+      for (var j = 0; j < c; j++) state.lineup.pos[list[i++].id] = { x: (j + 1) / (c + 1) * 100, y: y };
     });
-    state.lineup.pos = pos; luSel = null; save(); renderLineup();
+    luSel = null; save();
+    list.forEach(function (pl) { push(posOp(pl.id, state.lineup.pos[pl.id])); });
+    renderLineup();
   };
 
-  function render() { renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); }
-  render();
+  // ---------- events ----------
+  $('event-form').onsubmit = function (e) {
+    e.preventDefault();
+    var ev = { id: uid(), title: $('e-title').value.trim(), date: $('e-date').value, time: $('e-time').value,
+      venue_name: $('e-venue').value.trim(), venue_address: $('e-addr').value.trim(), venue_map_url: $('e-map').value.trim(),
+      notes: $('e-notes').value.trim(), created_at: nowIso() };
+    if (!ev.title) return;
+    if (ev.venue_map_url && !safeUrl(ev.venue_map_url)) { alert('Map link must start with http:// or https://'); return; }
+    state.events.push(ev);
+    push({ t: 'events', a: 'up', r: eventRow(ev) });
+    e.target.reset(); renderAll();
+  };
+  function eventRow(ev) {
+    return { id: ev.id, title: ev.title, date: ev.date || null, time: ev.time || null, venue_name: ev.venue_name || null,
+      venue_address: ev.venue_address || null, venue_map_url: ev.venue_map_url || null, notes: ev.notes || null, created_at: ev.created_at || nowIso() };
+  }
+  function pushAssign(a) {
+    push({ t: 'assignments', a: 'up', r: { id: a.id, event_id: a.event_id, task: a.task, assignee: a.assignee || null, done: !!a.done, created_at: a.created_at } });
+  }
+  function assignments(ev) {
+    var wrap = el('div', 'sub');
+    wrap.appendChild(el('h4', null, '📋 Who does what'));
+    var list = state.assignments.filter(function (a) { return a.event_id === ev.id; });
+    var ul = el('ul', 'bring');
+    if (!list.length) ul.appendChild(el('li', 'muted', 'No tasks yet.'));
+    list.forEach(function (a) {
+      var li = el('li', a.done ? 'taken' : '');
+      var cb = el('input', 'cb'); cb.type = 'checkbox'; cb.checked = !!a.done;
+      cb.setAttribute('aria-label', 'Done');
+      cb.onchange = function () { a.done = cb.checked; pushAssign(a); renderAll(); };
+      var info = el('div', 'grow');
+      info.appendChild(el('strong', a.done ? 'strike' : '', a.task));
+      if (a.assignee) info.appendChild(el('small', null, '👤 ' + a.assignee));
+      var del = el('button', 'del sm', '✕');
+      del.setAttribute('aria-label', 'Remove task');
+      del.onclick = function () {
+        state.assignments = state.assignments.filter(function (x) { return x.id !== a.id; });
+        push({ t: 'assignments', a: 'del', m: { id: a.id } }); renderAll();
+      };
+      li.appendChild(cb); li.appendChild(info); li.appendChild(del);
+      ul.appendChild(li);
+    });
+    wrap.appendChild(ul);
+    var f = el('form', 'inline');
+    var i1 = el('input'); i1.placeholder = 'Task (e.g. Book hall)'; i1.required = true;
+    var i2 = el('input', 'qty-in wide'); i2.placeholder = 'Assignee';
+    var ad = el('button', 'primary sm', 'Add'); ad.type = 'submit';
+    f.appendChild(i1); f.appendChild(i2); f.appendChild(ad);
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      if (!i1.value.trim()) return;
+      var a = { id: uid(), event_id: ev.id, task: i1.value.trim(), assignee: i2.value.trim(), done: false, created_at: nowIso() };
+      state.assignments.push(a); pushAssign(a); renderAll();
+    };
+    wrap.appendChild(f);
+    return wrap;
+  }
+  function eventCard(ev) {
+    var li = el('li', 'card-item');
+    var top = el('div', 'top');
+    var info = el('div', 'grow');
+    info.appendChild(el('strong', null, ev.title));
+    if (ev.date) info.appendChild(el('small', null, '🗓 ' + fmt(ev)));
+    if (ev.venue_name) info.appendChild(el('small', null, '🏠 ' + ev.venue_name));
+    if (ev.venue_address) info.appendChild(el('small', null, '📌 ' + ev.venue_address));
+    if (ev.notes) info.appendChild(el('small', 'notes', ev.notes));
+    var del = el('button', 'del', '✕');
+    del.setAttribute('aria-label', 'Delete event');
+    del.onclick = function () {
+      if (!confirm('Delete this event?')) return;
+      state.events = state.events.filter(function (x) { return x.id !== ev.id; });
+      state.items = state.items.filter(function (x) { return x.event_id !== ev.id; });
+      state.assignments = state.assignments.filter(function (x) { return x.event_id !== ev.id; });
+      push({ t: 'events', a: 'del', m: { id: ev.id } }); renderAll();
+    };
+    top.appendChild(info); top.appendChild(del);
+    li.appendChild(top);
+    var mb = mapsBtn(ev.venue_map_url, ev.venue_address);
+    if (mb) { var acts = el('div', 'acts'); acts.appendChild(mb); li.appendChild(acts); }
+    li.appendChild(bringList({ event_id: ev.id }));
+    li.appendChild(assignments(ev));
+    return li;
+  }
+  function renderEvents() {
+    var ul = $('event-list'); ul.innerHTML = '';
+    var list = state.events.slice().sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
+    if (!list.length) ul.appendChild(el('li', 'muted empty', 'No events yet.'));
+    list.forEach(function (ev) { ul.appendChild(eventCard(ev)); });
+  }
+
+  // ---------- chat ----------
+  var unread = 0, chatBound = false;
+  function chatActive() { return $('chat').classList.contains('active'); }
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+  function fmtDay(iso) {
+    var d = new Date(iso), t = new Date();
+    if (isNaN(d)) return '';
+    if (d.toDateString() === t.toDateString()) return 'Today';
+    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function renderChat(forceBottom) {
+    var box = $('chat-msgs');
+    var nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    box.innerHTML = '';
+    var me = myName(), lastDay = '', lastSender = '';
+    if (!state.chat.length) box.appendChild(el('div', 'chat-empty', 'No messages yet. Say hi 👋'));
+    state.chat.forEach(function (m) {
+      var day = fmtDay(m.created_at);
+      if (day !== lastDay) { box.appendChild(el('div', 'day', day)); lastDay = day; lastSender = ''; }
+      var mine = !!me && m.sender === me;
+      var b = el('div', 'bubble ' + (mine ? 'mine' : 'theirs') + (lastSender === m.sender ? ' cont' : ''));
+      if (!mine && lastSender !== m.sender) b.appendChild(el('div', 'who', m.sender));
+      b.appendChild(el('span', 'body', m.body));
+      b.appendChild(el('span', 'time', fmtTime(m.created_at)));
+      box.appendChild(b);
+      lastSender = m.sender;
+    });
+    if (forceBottom || nearBottom) box.scrollTop = box.scrollHeight;
+    var dot = $('chat-dot');
+    dot.textContent = unread; dot.style.display = unread ? '' : 'none';
+  }
+  function addChat(m, incoming) {
+    if (state.chat.some(function (x) { return x.id === m.id; })) return;
+    state.chat.push(m); state.chat.sort(byCreated);
+    if (state.chat.length > 300) state.chat = state.chat.slice(-300);
+    save();
+    var mine = m.sender === myName();
+    if (incoming && !mine) {
+      if (!chatActive() || document.hidden) unread++;
+      notify(m);
+    }
+    renderChat(true);
+  }
+  function notify(m) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!document.hidden && document.hasFocus()) return;
+    var opts = { body: m.body, tag: 'rf-chat', icon: 'icon-192.png' };
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(function (r) { r.showNotification(m.sender, opts); }).catch(function () { new Notification(m.sender, opts); });
+      } else new Notification(m.sender, opts);
+    } catch (e) {}
+  }
+  function openChat() {
+    if (!myName()) askName('Your name for chat');
+    if ('Notification' in window && Notification.permission === 'default' && !localStorage.getItem(NOTIF_KEY)) {
+      localStorage.setItem(NOTIF_KEY, '1');
+      try { Notification.requestPermission(); } catch (e) {}
+    }
+    unread = 0;
+    renderChat(true);
+  }
+  $('chat-form').onsubmit = function (e) {
+    e.preventDefault();
+    var inp = $('chat-input'), body = inp.value.trim();
+    if (!body) return;
+    var name = myName() || askName('Your name for chat');
+    if (!name) return;
+    inp.value = '';
+    var m = { id: uid(), sender: name, body: body, created_at: nowIso() };
+    addChat(m, false);
+    push({ t: 'chat_messages', a: 'up', r: m });
+    inp.focus();
+  };
+  $('chat-name').onclick = function () { if (askName('Your name for chat')) renderChat(); };
+
+  // ---------- render ----------
+  function renderAll(fromSync) {
+    var ae = document.activeElement;
+    if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderChat();
+  }
+  window.addEventListener('online', flush);
+  window.addEventListener('offline', function () { setSync('offline'); });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { if (chatActive()) { unread = 0; renderChat(); } flush(); }
+  });
+  setInterval(function () { if (!document.hidden) flush(); }, 30000);
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+  setSync(sb ? (navigator.onLine ? 'busy' : 'offline') : 'local');
+  renderAll();
+  subscribe();
+  flush();
 })();

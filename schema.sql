@@ -1,0 +1,79 @@
+-- Run in Supabase SQL editor (project ulokpqtouottaflqjwcp)
+create extension if not exists pgcrypto;
+
+create table if not exists players (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz default now()
+);
+create table if not exists practices (
+  id uuid primary key default gen_random_uuid(),
+  date date not null,
+  time time not null,
+  location text,
+  field_address text,
+  field_map_url text,
+  notes text,
+  created_at timestamptz default now()
+);
+create table if not exists availability (
+  id uuid primary key default gen_random_uuid(),
+  practice_id uuid references practices(id) on delete cascade,
+  player_id uuid references players(id) on delete cascade,
+  status text not null default 'maybe' check (status in ('maybe','available','unavailable','injured')),
+  created_at timestamptz default now(),
+  unique (practice_id, player_id)
+);
+create table if not exists events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  date date,
+  time time,
+  venue_name text,
+  venue_address text,
+  venue_map_url text,
+  notes text,
+  created_at timestamptz default now()
+);
+create table if not exists volunteer_items (
+  id uuid primary key default gen_random_uuid(),
+  practice_id uuid references practices(id) on delete cascade,
+  event_id uuid references events(id) on delete cascade,
+  item text not null,
+  quantity text,
+  volunteer_name text,
+  created_at timestamptz default now()
+);
+create table if not exists assignments (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid references events(id) on delete cascade,
+  task text not null,
+  assignee text,
+  done boolean default false,
+  created_at timestamptz default now()
+);
+create table if not exists chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  sender text not null,
+  body text not null,
+  created_at timestamptz default now()
+);
+create table if not exists lineup_positions (
+  id uuid primary key default gen_random_uuid(),
+  player_id uuid references players(id) on delete cascade unique,
+  x float not null,
+  y float not null,
+  updated_at timestamptz default now()
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['players','practices','availability','events','volunteer_items','assignments','chat_messages','lineup_positions'] loop
+    execute format('alter table %I enable row level security', t);
+    execute format('drop policy if exists "open" on %I', t);
+    execute format('create policy "open" on %I for all using (true) with check (true)', t);
+  end loop;
+end $$;
+
+alter publication supabase_realtime add table chat_messages;
