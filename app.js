@@ -311,12 +311,12 @@
       c.appendChild(im);
     } else setIc(c, 'ball');
   }
-  var PIN_KEY = 'rf.pinnedMsg';
-  function pinnedId() { return localStorage.getItem(PIN_KEY) || ''; }
+  var PINMSG_KEY = 'rf.pinnedMsg';
+  function pinnedId() { return localStorage.getItem(PINMSG_KEY) || ''; }
   function setPinnedId(id) {
     id = id || '';
     if (id === pinnedId()) return;
-    try { if (id) localStorage.setItem(PIN_KEY, id); else localStorage.removeItem(PIN_KEY); } catch (e) {}
+    try { if (id) localStorage.setItem(PINMSG_KEY, id); else localStorage.removeItem(PINMSG_KEY); } catch (e) {}
     if (typeof renderChat === 'function') renderChat();
   }
   function setTeamPic(u) {
@@ -2229,7 +2229,10 @@
 
 
   // ---------- PIN gate ----------
-  var PIN_KEY = 'rf.pin';
+  var PIN_KEY = 'rf.pin'; // NOTE: must stay distinct from PINMSG_KEY (pinned chat message)
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { console.warn('[gate] localStorage read failed', k, e); return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { console.warn('[gate] localStorage write failed', k, e); return false; } }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { console.warn('[gate] localStorage remove failed', k, e); } }
   function pinOf(pin) { return state.players.filter(function (p) { return p.pin && p.pin === pin; })[0] || null; }
   function pinTaken(pin, exceptId) { return state.players.some(function (p) { return p.pin === pin && p.id !== exceptId; }); }
   function freePin() {
@@ -2242,8 +2245,9 @@
   // Admins manage PINs; until the first admin exists, any logged-in member can.
   function canManagePins() { return !!myName() && (!state.admins.length || iAmAdmin()); }
   function unlock(p) {
-    localStorage.setItem(PIN_KEY, p.pin);
-    localStorage.setItem(NAME_KEY, p.name);
+    if (lsSet(PIN_KEY, p.pin) && lsGet(PIN_KEY) === p.pin) console.log('[gate] PIN saved for this device');
+    else console.warn('[gate] PIN could not be saved; you will be asked again after a refresh');
+    lsSet(NAME_KEY, p.name);
     document.body.classList.remove('locked');
     renderAll();
   }
@@ -2253,15 +2257,15 @@
     gateMode(); resetBoxes(msg || '');
   }
   function logout() {
-    localStorage.removeItem(PIN_KEY); localStorage.removeItem(NAME_KEY);
+    lsDel(PIN_KEY); lsDel(NAME_KEY);
     lockGate();
   }
   // Re-check the stored PIN after each sync: a reset or removed PIN logs the device out.
   function checkSession() {
-    var pin = localStorage.getItem(PIN_KEY);
+    var pin = lsGet(PIN_KEY);
     if (!pin) return;
     var p = pinOf(pin);
-    if (!p) { if (state.players.length) { localStorage.removeItem(PIN_KEY); localStorage.removeItem(NAME_KEY); lockGate('Your PIN is no longer valid. Enter your new PIN.'); } return; }
+    if (!p) { if (state.players.length) { console.warn('[gate] saved PIN no longer matches any player; logging out'); lsDel(PIN_KEY); lsDel(NAME_KEY); lockGate('Your PIN is no longer valid. Enter your new PIN.'); } return; }
     if (p.name !== myName()) { localStorage.setItem(NAME_KEY, p.name); renderAll(); }
   }
   var boxes = Array.prototype.slice.call(document.querySelectorAll('#pin-boxes input'));
@@ -2365,7 +2369,8 @@
   };
   function initGate() {
     $('gate-team').innerHTML = $('teamName').innerHTML;
-    var saved = localStorage.getItem(PIN_KEY), p = saved && pinOf(saved);
+    var saved = lsGet(PIN_KEY), p = saved && pinOf(saved);
+    console.log('[gate] init: saved PIN ' + (saved ? 'found' : 'absent'));
     if (p) { document.body.classList.remove('locked'); localStorage.setItem(NAME_KEY, p.name); return; }
     localStorage.removeItem(NAME_KEY); // saved PIN not in the local cache yet: verify against the server below
     gateMode(); resetBoxes();
