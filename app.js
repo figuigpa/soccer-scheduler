@@ -761,6 +761,85 @@
   var shuffling = false;
   $('auto-balance').onclick = function () {
     var p = selected(); if (!p || shuffling) return;
+    var avail = state.players.filter(function (pl) { return teamable(getAvail(p.id, pl.id)); });
+    if (!avail.length) return;
+    // Fisher-Yates: draw names from a hat
+    function fy(a) {
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1)), tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+      }
+      return a;
+    }
+    var adults = fy(avail.filter(function (pl) { return pl.category !== 'kid'; }).map(function (pl) { return pl.id; }));
+    var kidIds = fy(avail.filter(function (pl) { return pl.category === 'kid'; }).map(function (pl) { return pl.id; }));
+    var ids = adults.concat(kidIds), assign = {};
+    // Deal adults alternately Red/Yellow, then kids; if adults were odd (Red got the extra),
+    // kids start on Yellow so total team sizes stay within 1 (Red gets the extra when odd).
+    adults.forEach(function (id, k) { assign[id] = k % 2 === 0 ? 'red' : 'yellow'; });
+    kidIds.forEach(function (id, k) { assign[id] = (k + adults.length) % 2 === 0 ? 'red' : 'yellow'; });
+    var t = state.teams[p.id] = state.teams[p.id] || {};
+    if (team) t[plid] = team; else delete t[plid];
+    save(); renderTeams();
+  }
+  function chipBtn(cls, name, ic, label) {
+    var b = el('button', 'pchip ' + cls); b.type = 'button';
+    b.appendChild(el('span', 'pav', initials(name)));
+    b.appendChild(el('span', 'pn', name));
+    if (label) b.appendChild(el('em', 'pq', label));
+    if (ic) b.insertAdjacentHTML('beforeend', '<span class="pi">' + svg(ic) + '</span>');
+    return b;
+  }
+  function setCount(id, n) {
+    var e = $(id);
+    if (e.textContent === String(n)) return;
+    e.textContent = n; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump');
+  }
+  function renderTeams() {
+    var p = fillSelect($('teams-practice'));
+    ['red-list', 'yellow-list', 'pool', 'out'].forEach(function (id) { $(id).innerHTML = ''; });
+    $('pick-red').classList.toggle('active', pickTeam === 'red');
+    $('pick-yellow').classList.toggle('active', pickTeam === 'yellow');
+    $('team-seg').dataset.v = pickTeam;
+    var cnt = { red: 0, yellow: 0, pool: 0, out: 0 };
+    if (p) {
+      state.players.forEach(function (pl) {
+        var a = getAvail(p.id, pl.id), t = teamOf(p.id, pl.id);
+        if (!teamable(a)) {
+          cnt.out++;
+          var o = chipBtn('out', pl.name, null, LABEL[a]); o.disabled = true;
+          $('out').appendChild(o);
+        } else if (t) {
+          cnt[t]++;
+          var c = chipBtn(t, pl.name, 'x', a === 'maybe' ? 'maybe' : '');
+          c.setAttribute('aria-label', 'Remove ' + pl.name + ' from team ' + t);
+          c.onclick = function () { setTeam(p, pl.id, null); };
+          $(t + '-list').appendChild(c);
+        } else {
+          cnt.pool++;
+          var pi = chipBtn('bench add-' + pickTeam, pl.name, 'plus', a === 'maybe' ? 'maybe' : '');
+          pi.setAttribute('aria-label', 'Add ' + pl.name + ' to team ' + pickTeam);
+          pi.onclick = function () { setTeam(p, pl.id, pickTeam); };
+          $('pool').appendChild(pi);
+        }
+      });
+    }
+    setCount('red-n', cnt.red); setCount('yellow-n', cnt.yellow); setCount('pool-n', cnt.pool); setCount('out-n', cnt.out);
+    var diff = Math.abs(cnt.red - cnt.yellow), b = $('balance');
+    b.className = 'balance' + (diff > 1 ? ' uneven' : '');
+    b.textContent = diff > 1
+      ? 'Uneven: ' + (cnt.red > cnt.yellow ? 'Red' : 'Yellow') + ' has ' + diff + ' more'
+      : cnt.red + cnt.yellow ? 'Teams are balanced' : 'Tap players below to build teams';
+    if (diff > 1) b.insertAdjacentHTML('afterbegin', svg('alert')); else if (cnt.red + cnt.yellow) b.insertAdjacentHTML('afterbegin', svg('check'));
+    if (!cnt.red) $('red-list').appendChild(el('span', 'chip-empty', 'No players yet'));
+    if (!cnt.yellow) $('yellow-list').appendChild(el('span', 'chip-empty', 'No players yet'));
+    if (!cnt.pool) $('pool').appendChild(el('span', 'chip-empty', p ? 'Everyone is assigned' : 'Create a game first'));
+    if (!cnt.out) $('out').appendChild(el('span', 'chip-empty', 'None'));
+  }
+  $('pick-red').onclick = function () { pickTeam = 'red'; renderTeams(); };
+  $('pick-yellow').onclick = function () { pickTeam = 'yellow'; renderTeams(); };
+  var shuffling = false;
+  $('auto-balance').onclick = function () {
+    var p = selected(); if (!p || shuffling) return;
     var ids = state.players.filter(function (pl) { return teamable(getAvail(p.id, pl.id)); }).map(function (pl) { return pl.id; });
     if (!ids.length) return;
     // Fisher-Yates: draw names from a hat
@@ -779,8 +858,7 @@
       if (++n < 6) return;
       clearInterval(tick);
       pool.classList.remove('shuffling');
-      var half = Math.ceil(ids.length / 2); // Red gets the extra player when odd
-      ids.forEach(function (id, k) { t[id] = k < half ? 'red' : 'yellow'; });
+      ids.forEach(function (id) { t[id] = assign[id]; });
       shuffling = false;
       save(); renderTeams();
       ['red-list', 'yellow-list'].forEach(function (id) {
