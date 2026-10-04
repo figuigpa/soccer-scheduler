@@ -602,43 +602,16 @@
   document.querySelectorAll('.bottombar button').forEach(function (b) { b.onclick = function () { showTab(lastSub[b.dataset.pane]); }; });
 
 
-  // ---------- quick-add FAB ----------
+  // ---------- help-request FAB ----------
   (function () {
-    var fab = $('qa-fab'), wrap = $('qa-sheet'), hideT = null;
-    function setOpen(on) {
-      clearTimeout(hideT);
-      fab.classList.toggle('open', on); fab.setAttribute('aria-expanded', on);
-      if (on) { wrap.hidden = false; void wrap.offsetWidth; wrap.classList.add('show'); }
-      else { wrap.classList.remove('show'); hideT = setTimeout(function () { wrap.hidden = true; }, 300); }
-    }
-    function openFold(tab, foldId) {
-      showTab(tab);
-      var f = $(foldId); if (!f) return;
-      f.open = true;
-      setTimeout(function () {
-        f.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        var i = f.querySelector('input:not([type=hidden]),select'); if (i) try { i.focus({ preventScroll: true }); } catch (e) { i.focus(); }
-      }, 60);
-    }
+    var fab = $('qa-fab');
     function openHelp() {
       var v = $('help-view'); v.hidden = false; $('help-fold').open = true; v.querySelector('.help-body').scrollTop = 0;
       setTimeout(function () { try { $('h-title').focus({ preventScroll: true }); } catch (e) { $('h-title').focus(); } }, 60);
     }
     $('help-close').onclick = function () { $('help-view').hidden = true; };
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('help-view').hidden && !document.querySelector('.md-overlay')) $('help-view').hidden = true; });
-    var actions = {
-      game: function () { openFold('practices', 'practice-fold'); },
-      event: function () { openFold('events', 'event-fold'); },
-      poll: function () { openFold('polls', 'poll-fold'); },
-      help: function () { openHelp(); },
-      photo: function () { showTab('album'); openAlbumSheet(); }
-    };
-    fab.onclick = function () { setOpen(!wrap.classList.contains('show')); };
-    $('qa-scrim').onclick = function () { setOpen(false); };
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && wrap.classList.contains('show')) setOpen(false); });
-    wrap.querySelectorAll('button[data-qa]').forEach(function (b) {
-      b.onclick = function () { setOpen(false); actions[b.dataset.qa](); };
-    });
+    fab.onclick = openHelp;
   })();
 
   // ---------- bring list (practices + events) ----------
