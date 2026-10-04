@@ -149,6 +149,7 @@
       "clip": "<path d=\"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48\"/>",
       "dcheck": "<polyline points=\"1 13 6 18 16 6\"/><polyline points=\"9 15 11 17 21 6\"/>",
       "reply": "<polyline points=\"9 14 4 9 9 4\"/><path d=\"M20 20v-7a4 4 0 0 0-4-4H4\"/>",
+      "pin": "<path d=\"M12 17v5\"/><path d=\"M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z\"/>",
       "play": "<polygon points=\"6 4 20 12 6 20 6 4\"/>",
       "pause": "<rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"/><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"/>",
       "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/>",
@@ -310,6 +311,14 @@
       c.appendChild(im);
     } else setIc(c, 'ball');
   }
+  var PIN_KEY = 'rf.pinnedMsg';
+  function pinnedId() { return localStorage.getItem(PIN_KEY) || ''; }
+  function setPinnedId(id) {
+    id = id || '';
+    if (id === pinnedId()) return;
+    try { if (id) localStorage.setItem(PIN_KEY, id); else localStorage.removeItem(PIN_KEY); } catch (e) {}
+    if (typeof renderChat === 'function') renderChat();
+  }
   function setTeamPic(u) {
     if (!u || u === teamPic()) return;
     try { localStorage.setItem(PIC_KEY, u); } catch (e) {}
@@ -442,7 +451,7 @@
     var ad = await sb.from('chat_admins').select('*');
     var adminsOk = !ad.error;
     var ts = await sb.from('team_settings').select('*').eq('id', 1);
-    if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); }
+    if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); setPinnedId(ts.data[0].pinned_message_id); }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
     state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult', pin: r.pin || '' }; });
@@ -482,6 +491,7 @@
     sb.channel('team-live').on('postgres_changes', { event: '*', schema: 'public', table: 'team_settings' }, function (p) {
       if (p.new && p.new.name) setTeamName(p.new.name);
       if (p.new && p.new.picture_url) setTeamPic(p.new.picture_url);
+      if (p.new && 'pinned_message_id' in p.new) setPinnedId(p.new.pinned_message_id);
     }).subscribe();
     sb.channel('chat-live').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) {
       addChat(chatRow(p.new), true);
@@ -1443,10 +1453,15 @@
   }
   async function actionSheet(m) {
     var acts = [{ label: 'Reply', icon: 'reply', value: 'reply' }];
+    var pinned = m.id === pinnedId();
+    if (!pinned) acts.push({ label: 'Pin', icon: 'pin', value: 'pin' });
+    else if (iAmAdmin()) acts.push({ label: 'Unpin', icon: 'pin', value: 'unpin' });
     if (!parseMedia(m.body)) acts.push({ label: 'Copy', value: 'copy' });
     if (myName() && (m.sender === myName() || iAmAdmin())) acts.push({ label: 'Delete', icon: 'trash', value: 'del', danger: true });
     var v = await showModal({ actions: acts });
     if (v === 'reply') setReply(m);
+    else if (v === 'pin') pinChat(m.id);
+    else if (v === 'unpin') pinChat(null);
     else if (v === 'copy') { try { navigator.clipboard.writeText(plainBody(m.body)); } catch (e) {} }
     else if (v === 'del') deleteChat(m);
   }
@@ -1481,9 +1496,29 @@
     t.scrollIntoView({ block: 'center', behavior: 'smooth' });
     t.classList.add('flash'); setTimeout(function () { t.classList.remove('flash'); }, 1200);
   }
+  function pinChat(id) {
+    if (!myName() || (!id && !iAmAdmin())) return;
+    setPinnedId(id);
+    push({ t: 'team_settings', a: 'up', c: 'id', r: { id: 1, name: teamName(), pinned_message_id: id || null } });
+  }
+  function renderPinBar() {
+    var bar = $('pin-bar'), id = pinnedId();
+    var m = id && state.chat.filter(function (x) { return x.id === id; })[0];
+    bar.hidden = !m;
+    if (!m) return;
+    bar.innerHTML = '';
+    var c = nameColor(m.sender);
+    bar.style.setProperty('--qc', c);
+    bar.appendChild(el('span', 'pin-ic')).innerHTML = svg('pin');
+    var t = el('span', 'pin-txt'), w = el('b', '', m.sender === myName() ? 'You' : m.sender); w.style.color = c;
+    t.appendChild(w); t.appendChild(el('span', '', snippetOf(m.body)));
+    bar.appendChild(t);
+  }
+  $('pin-bar').onclick = function () { jumpTo(pinnedId()); };
   function renderChat(forceBottom) {
     var box = $('chat-msgs');
     renderChatHead();
+    renderPinBar();
     var nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     box.innerHTML = '';
     var me = myName(), lastDay = '', lastSender = '';
@@ -1506,6 +1541,7 @@
         b.appendChild(q);
       }
       var time = el('span', 'time', fmtTime(m.created_at));
+      if (m.id === pinnedId()) time.insertAdjacentHTML('afterbegin', svg('pin').replace('class="i"', 'class="i pin"'));
       if (mine) time.insertAdjacentHTML('beforeend', svg('dcheck'));
       if (media && media.type === 'img') {
         b.classList.add('has-img');

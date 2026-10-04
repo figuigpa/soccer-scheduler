@@ -235,6 +235,14 @@ svg.i:only-child{margin-right:0}
 .row.first{margin-top:8px}
 .row.mine{justify-content:flex-end}
 .row.armed::before{content:"";}
+.pin-bar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#1f2c34;border-top:1px solid #0b141a;border-left:3px solid var(--qc,#53bdeb);color:#e9edef;cursor:pointer}
+.pin-bar[hidden]{display:none}
+.pin-bar .pin-ic{flex:none;color:#8696a0;display:grid;place-items:center}
+.pin-bar .pin-ic svg.i{width:18px;height:18px;margin:0}
+.pin-bar .pin-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.pin-bar b{font-size:.78rem;font-weight:600}
+.pin-bar .pin-txt span{font-size:.84rem;color:#ffffffa8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bubble .time svg.i.pin{width:13px;height:13px;transform:rotate(45deg)}
 .row.flash .bubble{filter:brightness(1.6)}
 .av,.av-sp{flex:none;width:30px;height:30px}
 .av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:.85rem;align-self:flex-start;margin-top:2px;text-shadow:0 1px 1px #0004}

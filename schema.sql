@@ -168,3 +168,6 @@ alter publication supabase_realtime add table albums;
 
 -- Player PINs (invitation codes): each player's 4-digit PIN is their login and chat identity
 alter table players add column if not exists pin text;
+
+-- Pinned chat message (one per team; synced via team_settings)
+alter table team_settings add column if not exists pinned_message_id uuid;
