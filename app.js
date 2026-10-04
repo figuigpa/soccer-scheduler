@@ -60,7 +60,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], polls: [], pollOpts: [], pollVotes: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -153,6 +153,8 @@
   async function pull() {
     setSync('busy');
     var T = ['players', 'practices', 'availability', 'events', 'volunteer_items', 'assignments', 'chat_messages', 'lineup_positions'];
+    var PT = ['polls', 'poll_options', 'poll_votes'];
+    var pres = await Promise.all(PT.map(function (t) { return sb.from(t).select('*'); }));
     var res = await Promise.all(T.map(function (t) {
       var q = sb.from(t).select('*');
       if (t === 'chat_messages') q = q.order('created_at', { ascending: false }).limit(300);
@@ -160,6 +162,13 @@
     }));
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) { setSync(isNetErr(res[i]) ? 'offline' : 'setup'); return; }
+    }
+    var pollsOk = true;
+    for (var j = 0; j < pres.length; j++) {
+      if (pres[j].error) {
+        if (isNetErr(pres[j])) { setSync('offline'); return; }
+        pollsOk = false; // poll tables not created yet: keep local polls, don't break the rest
+      }
     }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
@@ -177,6 +186,11 @@
     state.items = d[4].sort(byCreated);
     state.assignments = d[5].sort(byCreated);
     state.chat = d[6].sort(byCreated).map(chatRow);
+    if (pollsOk) {
+      state.polls = pres[0].data.sort(byCreated);
+      state.pollOpts = pres[1].data.sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
+      state.pollVotes = pres[2].data;
+    }
     state.lineup.pos = {};
     d[7].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
     save(); setSync('synced');
@@ -189,6 +203,8 @@
     if (!sb) return;
     sb.channel('chat-live').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) {
       addChat(chatRow(p.new), true);
+    }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, function (p) {
+      if (p.old && p.old.id) removeChat(p.old.id);
     }).subscribe();
   }
 
@@ -219,7 +235,7 @@
   function teamable(a) { return a === 'maybe' || a === 'available'; }
 
   // ---------- navigation: 2 panes (Soccer / Gathering), each with sub-sections ----------
-  var paneOf = { practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', chat: 'chat-pane' };
+  var paneOf = { polls: 'gather', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', chat: 'chat-pane' };
   var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat' };
   var curTab = 'practices';
   function showTab(name) {
@@ -764,6 +780,93 @@
     list.forEach(function (ev) { ul.appendChild(eventCard(ev)); });
   }
 
+  // ---------- polls ----------
+  function pollOptsOf(pid) {
+    return state.pollOpts.filter(function (o) { return o.poll_id === pid; })
+      .sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
+  }
+  function vote(poll, opt) {
+    var name = myName() || askName('Your name (used for votes and chat)');
+    if (!name) return;
+    var mine = state.pollVotes.filter(function (v) { return v.poll_id === poll.id && v.voter === name; })[0];
+    if (mine && mine.option_id === opt.id) return;
+    var row = { id: mine ? mine.id : uid(), poll_id: poll.id, option_id: opt.id, voter: name, created_at: nowIso() };
+    state.pollVotes = state.pollVotes.filter(function (v) { return !(v.poll_id === poll.id && v.voter === name); });
+    state.pollVotes.push(row);
+    push({ t: 'poll_votes', a: 'up', c: 'poll_id,voter', r: row });
+    renderPolls();
+  }
+  function pollCard(poll) {
+    var li = el('li', 'card-item poll');
+    var top = el('div', 'top');
+    top.appendChild(el('strong', null, poll.question));
+    var del = el('button', 'link danger', 'Delete');
+    del.type = 'button';
+    del.onclick = function () {
+      if (!confirm('Delete this poll and all its votes?')) return;
+      state.polls = state.polls.filter(function (p) { return p.id !== poll.id; });
+      state.pollOpts = state.pollOpts.filter(function (o) { return o.poll_id !== poll.id; });
+      state.pollVotes = state.pollVotes.filter(function (v) { return v.poll_id !== poll.id; });
+      push({ t: 'polls', a: 'del', m: { id: poll.id } }); renderPolls();
+    };
+    top.appendChild(del);
+    li.appendChild(top);
+    var votes = state.pollVotes.filter(function (v) { return v.poll_id === poll.id; });
+    var me = myName();
+    var myVote = votes.filter(function (v) { return v.voter === me; })[0];
+    pollOptsOf(poll.id).forEach(function (o) {
+      var vs = votes.filter(function (v) { return v.option_id === o.id; });
+      var pct = votes.length ? Math.round(vs.length * 100 / votes.length) : 0;
+      var b = el('button', 'poll-opt' + (myVote && myVote.option_id === o.id ? ' mine' : ''));
+      b.type = 'button';
+      var bar = el('i', 'bar'); bar.style.width = pct + '%';
+      b.appendChild(bar);
+      b.appendChild(el('span', 'ot', o.text));
+      b.appendChild(el('span', 'oc', vs.length + ' · ' + pct + '%'));
+      b.onclick = function () { vote(poll, o); };
+      li.appendChild(b);
+      if (vs.length) li.appendChild(el('small', 'voters', vs.map(function (v) { return v.voter; }).join(', ')));
+    });
+    li.appendChild(el('small', 'muted', votes.length + (votes.length === 1 ? ' vote' : ' votes') + ' · tap an option to vote or change your vote'));
+    return li;
+  }
+  function renderPolls() {
+    var ul = $('poll-list'); ul.innerHTML = '';
+    var list = state.polls.slice().sort(function (a, b) { return -byCreated(a, b); });
+    if (!list.length) ul.appendChild(el('li', 'muted empty', 'No polls yet.'));
+    list.forEach(function (p) { ul.appendChild(pollCard(p)); });
+  }
+  function pollFields() { return Array.prototype.slice.call($('poll-opts').querySelectorAll('input')); }
+  function addPollField(val) {
+    var row = el('div', 'poll-field');
+    var inp = el('input'); inp.type = 'text'; inp.placeholder = 'Option'; inp.value = val || '';
+    var x = el('button', 'link danger', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Remove option');
+    x.onclick = function () { if (pollFields().length > 2) { row.remove(); } };
+    row.appendChild(inp); row.appendChild(x);
+    $('poll-opts').appendChild(row);
+  }
+  function resetPollForm() {
+    $('poll-q').value = ''; $('poll-opts').innerHTML = ''; addPollField(); addPollField();
+  }
+  $('poll-add-opt').onclick = function () { addPollField(); };
+  $('poll-form').onsubmit = function (e) {
+    e.preventDefault();
+    var q = $('poll-q').value.trim();
+    var texts = pollFields().map(function (i) { return i.value.trim(); }).filter(Boolean);
+    if (!q) return;
+    if (texts.length < 2) { alert('A poll needs at least 2 options.'); return; }
+    var poll = { id: uid(), question: q, created_at: nowIso() };
+    state.polls.push(poll);
+    push({ t: 'polls', a: 'up', r: poll });
+    texts.forEach(function (t, i) {
+      var o = { id: uid(), poll_id: poll.id, text: t, position: i };
+      state.pollOpts.push(o);
+      push({ t: 'poll_options', a: 'up', r: o });
+    });
+    resetPollForm(); $('poll-fold').open = false; renderPolls();
+  };
+  resetPollForm();
+
   // ---------- chat ----------
   var unread = 0, chatBound = false;
   function chatActive() { return curTab === 'chat'; }
@@ -791,12 +894,27 @@
       if (!mine && lastSender !== m.sender) b.appendChild(el('div', 'who', m.sender));
       b.appendChild(el('span', 'body', m.body));
       b.appendChild(el('span', 'time', fmtTime(m.created_at)));
+      if (mine) {
+        b.classList.add('deletable'); b.title = 'Tap to delete';
+        b.onclick = (function (msg) { return function () { deleteChat(msg); }; })(m);
+      }
       box.appendChild(b);
       lastSender = m.sender;
     });
     if (forceBottom || nearBottom) box.scrollTop = box.scrollHeight;
     var dot = $('chat-dot');
     dot.textContent = unread; dot.style.display = unread ? '' : 'none';
+  }
+  function removeChat(id) {
+    var n = state.chat.length;
+    state.chat = state.chat.filter(function (x) { return x.id !== id; });
+    if (state.chat.length !== n) { save(); renderChat(); }
+  }
+  function deleteChat(m) {
+    if (!myName() || m.sender !== myName()) return;
+    if (!confirm('Delete this message?\n\n' + m.body.slice(0, 120))) return;
+    removeChat(m.id);
+    push({ t: 'chat_messages', a: 'del', m: { id: m.id } });
   }
   function addChat(m, incoming) {
     if (state.chat.some(function (x) { return x.id === m.id; })) return;
@@ -847,7 +965,7 @@
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderChat();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat();
   }
   window.addEventListener('online', flush);
   window.addEventListener('offline', function () { setSync('offline'); });

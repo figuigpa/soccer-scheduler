@@ -164,3 +164,16 @@ body.on-chat{overflow:hidden;padding-bottom:0}
 .edit{min-width:42px;min-height:42px;border:0;border-radius:50%;background:#eaf1fb;color:var(--green,#2a6);font-size:1rem;font-weight:800;flex:none;margin-right:6px}
 .cancel{width:100%;min-height:42px;margin-top:8px;border:0;border-radius:10px;background:#eee;font-weight:700}
 .cancel[hidden]{display:none}
+
+/* polls */
+.poll-field{display:flex;gap:6px;align-items:center}
+.poll-field input{margin:4px 0}
+.poll-opt{position:relative;display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;min-height:46px;margin-top:8px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--dark);font-weight:700;text-align:left;overflow:hidden}
+.poll-opt .bar{position:absolute;left:0;top:0;bottom:0;background:#d7ecdc;transition:width .3s;z-index:0}
+.poll-opt .ot,.poll-opt .oc{position:relative;z-index:1}
+.poll-opt .oc{font-size:.8rem;white-space:nowrap}
+.poll-opt.mine{border-color:var(--green2)}
+.poll-opt.mine .bar{background:#b4dfbd}
+.voters{display:block;margin:2px 4px 0;color:#5b6b5f}
+.bubble.deletable{cursor:pointer}
+.link.danger{color:#b42318}

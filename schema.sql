@@ -77,3 +77,33 @@ begin
 end $$;
 
 alter publication supabase_realtime add table chat_messages;
+
+-- Polls
+create table if not exists polls (
+  id uuid primary key default gen_random_uuid(),
+  question text not null,
+  created_at timestamptz default now()
+);
+create table if not exists poll_options (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid references polls(id) on delete cascade,
+  text text not null,
+  position int default 0
+);
+create table if not exists poll_votes (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid references polls(id) on delete cascade,
+  option_id uuid references poll_options(id) on delete cascade,
+  voter text not null,
+  created_at timestamptz default now(),
+  unique(poll_id, voter)
+);
+do $$
+declare t text;
+begin
+  foreach t in array array['polls','poll_options','poll_votes'] loop
+    execute format('alter table %I enable row level security', t);
+    execute format('drop policy if exists "open" on %I', t);
+    execute format('create policy "open" on %I for all using (true) with check (true)', t);
+  end loop;
+end $$;

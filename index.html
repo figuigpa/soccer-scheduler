@@ -128,6 +128,10 @@
 
 </div>
 <div id="gather" class="pane">
+<nav class="subnav" data-pane="gather">
+  <button data-tab="events" class="active">🎉 Events</button>
+  <button data-tab="polls">📊 Polls</button>
+</nav>
 
   <section id="events" class="tab active">
     <h2 class="page-title">🎉 Gathering</h2>
@@ -147,6 +151,19 @@
     </form></details>
     <h2>Events</h2>
     <ul id="event-list" class="list"></ul>
+  </section>
+
+  <section id="polls" class="tab">
+    <h2 class="page-title">📊 Polls</h2>
+    <details class="card fold" id="poll-fold"><summary>＋ New poll</summary>
+    <form id="poll-form">
+      <label>Question <input type="text" id="poll-q" placeholder="Which day works for the party?" required></label>
+      <div id="poll-opts"></div>
+      <button type="button" class="cancel" id="poll-add-opt">＋ Add option</button>
+      <button class="primary" type="submit">Create poll</button>
+    </form></details>
+    <h2>Polls</h2>
+    <ul id="poll-list" class="list"></ul>
   </section>
 </div>
 <div id="chat-pane" class="pane">
