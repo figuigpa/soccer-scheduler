@@ -34,14 +34,14 @@
 <main>
 <div id="soccer" class="pane active">
 <nav class="subnav" data-pane="soccer">
-  <button data-tab="practices" class="active" data-ic="calendar">Practices</button>
+  <button data-tab="practices" class="active" data-ic="calendar">Games</button>
   <button data-tab="players" data-ic="users">Players</button>
   <button data-tab="avail" data-ic="checkcircle">Availability</button>
   <button data-tab="teams" data-ic="shirt">Teams</button>
   <button data-tab="lineup" data-ic="clipboard">Lineup</button>
 </nav>
   <section id="practices" class="tab active">
-    <details class="card fold" id="practice-fold"><summary data-ic="plus">New practice</summary>
+    <details class="card fold" id="practice-fold"><summary data-ic="plus">New game</summary>
     <form id="practice-form">
       <div class="grid2">
         <label>Date <input type="date" id="p-date" required></label>
@@ -51,7 +51,7 @@
       <label>Field address <input type="text" id="p-addr" placeholder="Street, city (optional)"></label>
       <label>Map link <input type="url" id="p-map" placeholder="https://maps.google.com/… (optional)"></label>
       <label>Notes <input type="text" id="p-notes" placeholder="Optional"></label>
-      <button class="primary" type="submit">Add practice</button>
+      <button class="primary" type="submit">Add game</button>
       <button type="button" class="cancel" id="p-cancel" hidden>Cancel</button>
     </form></details>
     <h2>Upcoming</h2>

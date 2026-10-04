@@ -511,8 +511,8 @@
   var editingPractice = null;
   function endPracticeEdit() {
     editingPractice = null; $('practice-form').reset(); $('practice-fold').open = false;
-    $('practice-form').querySelector('button.primary').textContent = 'Add practice';
-    setIc($('practice-fold').querySelector('summary'), 'plus', 'New practice');
+    $('practice-form').querySelector('button.primary').textContent = 'Add game';
+    setIc($('practice-fold').querySelector('summary'), 'plus', 'New game');
     $('p-cancel').hidden = true;
   }
   $('p-cancel').onclick = function () { endPracticeEdit(); };
@@ -521,7 +521,7 @@
     $('p-date').value = p.date || ''; $('p-time').value = p.time || ''; $('p-place').value = p.location || '';
     $('p-addr').value = p.field_address || ''; $('p-map').value = p.field_map_url || ''; $('p-notes').value = p.notes || '';
     $('practice-form').querySelector('button.primary').textContent = 'Save changes';
-    setIc($('practice-fold').querySelector('summary'), 'edit', 'Edit practice');
+    setIc($('practice-fold').querySelector('summary'), 'edit', 'Edit game');
     $('p-cancel').hidden = false;
     $('practice-fold').open = true; $('practice-fold').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -534,21 +534,25 @@
     if (p.field_address) info.appendChild(ei('small', null, 'pin', p.field_address));
     if (p.notes) info.appendChild(el('small', 'notes', p.notes));
     var del = ei('button', 'del', 'trash');
-    del.setAttribute('aria-label', 'Delete practice');
+    del.setAttribute('aria-label', 'Delete game');
     del.onclick = function () {
-      if (!confirm('Delete this practice?')) return;
+      if (!confirm('Delete this game?')) return;
       state.practices = state.practices.filter(function (x) { return x.id !== p.id; });
       state.items = state.items.filter(function (x) { return x.practice_id !== p.id; });
       delete state.avail[p.id]; delete state.teams[p.id];
       push({ t: 'practices', a: 'del', m: { id: p.id } }); renderAll();
     };
     var edit = ei('button', 'edit', 'edit');
-    edit.setAttribute('aria-label', 'Edit practice');
+    edit.setAttribute('aria-label', 'Edit game');
     edit.onclick = function () { startPracticeEdit(p); };
     top.appendChild(info); top.appendChild(edit); top.appendChild(del);
     li.appendChild(top);
     var me = mapEmbed(p.field_address);
     if (me) li.appendChild(me);
+    var cn = { available: 0, maybe: 0, unavailable: 0, injured: 0 };
+    state.players.forEach(function (pl) { cn[getAvail(p.id, pl.id)]++; });
+    var sum = cn.available + ' available · ' + cn.maybe + ' maybe · ' + cn.unavailable + ' out' + (cn.injured ? ' · ' + cn.injured + ' injured' : '');
+    li.appendChild(el('div', 'avail-sum', sum));
     var acts = el('div', 'acts');
     var mb = mapsBtn(p.field_map_url, p.field_address);
     if (mb) acts.appendChild(mb);
@@ -563,7 +567,7 @@
     up.innerHTML = ''; past.innerHTML = '';
     sorted.filter(function (p) { return !isPast(p); }).forEach(function (p) { up.appendChild(practiceItem(p)); });
     sorted.filter(isPast).reverse().forEach(function (p) { past.appendChild(practiceItem(p)); });
-    if (!up.children.length) up.appendChild(el('li', 'muted empty', 'No upcoming practices.'));
+    if (!up.children.length) up.appendChild(el('li', 'muted empty', 'No upcoming games.'));
   }
 
   // ---------- players ----------
@@ -599,7 +603,7 @@
   function fillSelect(sel) {
     var cur = selected();
     sel.innerHTML = '';
-    if (!state.practices.length) { sel.appendChild(new Option('No practices yet', '')); return null; }
+    if (!state.practices.length) { sel.appendChild(new Option('No games yet', '')); return null; }
     state.practices.slice().sort(bySort).forEach(function (p) {
       var o = new Option(fmt(p) + (p.location ? ' – ' + p.location : ''), p.id);
       o.selected = cur && cur.id === p.id;
@@ -616,7 +620,7 @@
     var p = fillSelect($('avail-practice'));
     var ul = $('avail-list'), counts = $('avail-counts');
     ul.innerHTML = ''; counts.innerHTML = '';
-    if (!p) { ul.appendChild(el('li', 'muted empty', 'Create a practice first.')); return; }
+    if (!p) { ul.appendChild(el('li', 'muted empty', 'Create a game first.')); return; }
     var n = { available: 0, maybe: 0, unavailable: 0, injured: 0 };
     state.players.forEach(function (pl) { n[getAvail(p.id, pl.id)]++; });
     ['available', 'maybe', 'unavailable', 'injured'].forEach(function (k) {
@@ -677,7 +681,7 @@
       ? 'Uneven: ' + (cnt.red > cnt.yellow ? 'Red' : 'Yellow') + ' has ' + diff + ' more'
       : cnt.red + cnt.yellow ? 'Teams are balanced' : 'Tap players below to build teams';
     if (diff > 1) b.insertAdjacentHTML('afterbegin', svg('alert')); else if (cnt.red + cnt.yellow) b.insertAdjacentHTML('afterbegin', svg('check'));
-    if (!$('pool').children.length) $('pool').appendChild(el('li', 'muted', p ? 'No unassigned players.' : 'Create a practice first.'));
+    if (!$('pool').children.length) $('pool').appendChild(el('li', 'muted', p ? 'No unassigned players.' : 'Create a game first.'));
     if (!$('out').children.length) $('out').appendChild(el('li', 'muted', 'None'));
   }
   $('pick-red').onclick = function () { pickTeam = 'red'; renderTeams(); };
@@ -754,9 +758,9 @@
     $('lu-help').textContent = luMode === 'pen' ? 'Pen: draw lines on the field. Switch to Move to place players.'
       : luSel ? 'Now tap a spot on the field (or drag a placed player).' : 'Tap a player, then tap the field. Tap a placed player to select or remove.';
     var ro = $('lu-roster'); ro.innerHTML = '';
-    if (!p) ro.appendChild(el('p', 'muted', 'Create a practice first.'));
+    if (!p) ro.appendChild(el('p', 'muted', 'Create a game first.'));
     else if (!state.players.length) ro.appendChild(el('p', 'muted', 'Add players in the Players tab first.'));
-    else if (!pool.length) ro.appendChild(el('p', 'muted', 'No players marked Available for this practice. Set them in the Availability tab.'));
+    else if (!pool.length) ro.appendChild(el('p', 'muted', 'No players marked Available for this game. Set them in the Availability tab.'));
     pool.forEach(function (pl) {
       var c = el('button', 'lchip' + (L.pos[pl.id] ? ' on' : '') + (luSel === pl.id ? ' sel' : ''));
       c.appendChild(el('span', 'jersey', initials(pl.name)));

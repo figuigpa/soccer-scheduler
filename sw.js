@@ -1,4 +1,4 @@
-var CACHE = 'rf-shell-v9';
+var CACHE = 'rf-shell-v10';
 var SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
