@@ -575,3 +575,18 @@ body.locked .gate{display:grid}
 .bubble .lp-host{font-size:.74rem;color:#8696a0;margin-top:2px;text-transform:lowercase}
 
 .list li.list-h{background:none;border:0;box-shadow:none;padding:10px 2px 2px;font-weight:800;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--green)}
+
+/* help requests */
+.help-cat{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:800;color:var(--green2);background:#e5f1e7;border-radius:12px;padding:3px 9px;white-space:nowrap}
+.help-cat svg.i{width:13px;height:13px}
+.help-desc{margin:6px 0 4px;color:var(--ink)}
+.help-vols,.help-done{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--green2);font-weight:700}
+.help-vols svg.i,.help-done svg.i{width:14px;height:14px}
+.help-acts{display:flex;align-items:center;gap:14px;margin-top:10px}
+.help.resolved{border-left-color:var(--line);opacity:.75}
+/* announcement bot messages */
+.row.bot{justify-content:center;margin:8px 0 4px}
+.bubble.bot{background:#182229;border:1px solid #2a3942;color:#e9edef;border-radius:12px;padding:8px 12px;max-width:86%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bubble.bot .bot-who{display:flex;align-items:center;gap:6px;font-size:.74rem;font-weight:800;color:#e8c34a;letter-spacing:.03em}
+.bubble.bot .bot-who svg.i{width:15px;height:15px}
+.bubble.bot .time{margin:0;font-size:.66rem;color:#8696a0;float:none}

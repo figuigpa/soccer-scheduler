@@ -171,3 +171,29 @@ alter table players add column if not exists pin text;
 
 -- Pinned chat message (one per team; synced via team_settings)
 alter table team_settings add column if not exists pinned_message_id uuid;
+
+-- Help requests (community asks + volunteers)
+create table if not exists help_requests (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  category text,
+  posted_by text,
+  is_resolved boolean default false,
+  created_at timestamptz default now()
+);
+create table if not exists help_volunteers (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid references help_requests(id) on delete cascade,
+  volunteer_name text,
+  created_at timestamptz default now()
+);
+alter table help_requests enable row level security;
+alter table help_volunteers enable row level security;
+drop policy if exists "open" on help_requests;
+drop policy if exists "open" on help_volunteers;
+create policy "open" on help_requests for all using (true) with check (true);
+create policy "open" on help_volunteers for all using (true) with check (true);
+alter publication supabase_realtime add table help_requests;
+alter publication supabase_realtime add table help_volunteers;
+-- Announcement bot: no schema change. Bot posts are chat_messages with sender 'Figuig PA' and body '[bot:<kind>]<text>'.

@@ -189,6 +189,15 @@
     </form></details>
     <h2>Events</h2>
     <ul id="event-list" class="list"></ul>
+    <h2 class="page-title" data-ic="users">Help requests</h2>
+    <details class="card fold" id="help-fold"><summary data-ic="plus">New help request</summary>
+    <form id="help-form">
+      <label>Title <input type="text" id="h-title" placeholder="Need a ride to Saturday's game" required></label>
+      <label>Category <select id="h-cat"><option value="ride">Ride</option><option value="recommendation">Recommendation</option><option value="volunteer">Volunteer</option><option value="other">Other</option></select></label>
+      <label>Description <input type="text" id="h-desc" placeholder="Optional details"></label>
+      <button class="primary" type="submit">Post request</button>
+    </form></details>
+    <ul id="help-list" class="list"></ul>
   </section>
 
 </div>

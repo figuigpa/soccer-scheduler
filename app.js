@@ -161,6 +161,8 @@
       "move": "<polyline points=\"5 9 2 12 5 15\"/><polyline points=\"9 5 12 2 15 5\"/><polyline points=\"15 19 12 22 9 19\"/><polyline points=\"19 9 22 12 19 15\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"22\"/>",
       "layout": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><line x1=\"3\" y1=\"9\" x2=\"21\" y2=\"9\"/><line x1=\"9\" y1=\"21\" x2=\"9\" y2=\"9\"/>",
       "refresh": "<polyline points=\"23 4 23 10 17 10\"/><path d=\"M20.49 15a9 9 0 1 1-2.12-9.36L23 10\"/>",
+      "megaphone": "<path d=\"M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z\"/><path d=\"M15.5 8.5a5 5 0 0 1 0 7\"/><path d=\"M18.5 5.5a9 9 0 0 1 0 13\"/>",
+      "car": "<path d=\"M5 17H3v-5l2-5h12l3 5v5h-2\"/><circle cx=\"7.5\" cy=\"17\" r=\"2\"/><circle cx=\"16.5\" cy=\"17\" r=\"2\"/><line x1=\"9.5\" y1=\"17\" x2=\"14.5\" y2=\"17\"/><line x1=\"3\" y1=\"12\" x2=\"20\" y2=\"12\"/>",
       "alert": "<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>"
   };
   function svg(n) { return '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
@@ -207,7 +209,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], admins: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], helpReqs: [], helpVols: [], admins: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -446,6 +448,8 @@
         pollsOk = false; // poll tables not created yet: keep local polls, don't break the rest
       }
     }
+    var helpRes = await Promise.all(['help_requests', 'help_volunteers'].map(function (t) { return sb.from(t).select('*'); }));
+    var helpOk = !helpRes[0].error && !helpRes[1].error; // tables not created yet: keep local help data
     var photosRes = await sb.from('photos').select('*');
     var albumsRes = await sb.from('albums').select('*');
     var ad = await sb.from('chat_admins').select('*');
@@ -475,6 +479,7 @@
       state.pollOpts = pres[1].data.sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
       state.pollVotes = pres[2].data;
     }
+    if (helpOk) { state.helpReqs = helpRes[0].data.sort(byCreated); state.helpVols = helpRes[1].data.sort(byCreated); }
     if (adminsOk) state.admins = ad.data.sort(byCreated).map(function (r) { return r.name; });
     state.lineup.pos = {};
     d[7].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
@@ -510,6 +515,19 @@
       state.photos = state.photos.filter(function (x) { return x.id !== r.id; });
       if (p.eventType !== 'DELETE') state.photos.push(r);
       save(); renderAlbum();
+    }).subscribe();
+    sb.channel('help-live').on('postgres_changes', { event: '*', schema: 'public', table: 'help_requests' }, function (p) {
+      var r = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!r || !r.id || state.outbox.length) return;
+      state.helpReqs = state.helpReqs.filter(function (x) { return x.id !== r.id; });
+      if (p.eventType !== 'DELETE') state.helpReqs.push(r); else state.helpVols = state.helpVols.filter(function (v) { return v.request_id !== r.id; });
+      state.helpReqs.sort(byCreated); save(); renderHelp();
+    }).on('postgres_changes', { event: '*', schema: 'public', table: 'help_volunteers' }, function (p) {
+      var r = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!r || !r.id || state.outbox.length) return;
+      state.helpVols = state.helpVols.filter(function (x) { return x.id !== r.id; });
+      if (p.eventType !== 'DELETE') state.helpVols.push(r);
+      save(); renderHelp();
     }).subscribe();
     sb.channel('admins-live').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_admins' }, function (p) {
       var r = p.eventType === 'DELETE' ? p.old : p.new;
@@ -654,6 +672,7 @@
     if (old) { state.practices[state.practices.indexOf(old)] = p; }
     else { state.practices.push(p); if (!state.sel) state.sel = p.id; }
     push({ t: 'practices', a: 'up', r: practiceRow(p) });
+    if (!old) announce('game', 'New game scheduled: ' + fmt(p) + (p.location ? ' at ' + p.location : '') + '.');
     endPracticeEdit(); renderAll();
   };
   var editingPractice = null;
@@ -1132,6 +1151,7 @@
     if (ev.venue_map_url && !safeUrl(ev.venue_map_url)) { uiAlert('Map link must start with http:// or https://'); return; }
     if (old) state.events[state.events.indexOf(old)] = ev; else state.events.push(ev);
     push({ t: 'events', a: 'up', r: eventRow(ev) });
+    if (!old) announce('event', 'New gathering: ' + ev.title + (ev.date ? ' on ' + fmt(ev) : '') + (ev.venue_name ? ' at ' + ev.venue_name : '') + '.');
     endEventEdit(); renderAll();
   };
   var editingEvent = null;
@@ -1235,6 +1255,98 @@
     list.forEach(function (ev) { ul.appendChild(eventCard(ev)); });
   }
 
+  // ---------- help requests ----------
+  var HELP_CATS = { ride: ['Ride', 'car'], recommendation: ['Recommendation', 'star'], volunteer: ['Volunteer', 'users'], other: ['Other', 'help'] };
+  function helpRow(r) {
+    return { id: r.id, title: r.title, description: r.description || null, category: r.category || 'other', posted_by: r.posted_by || null,
+      is_resolved: !!r.is_resolved, created_at: r.created_at || nowIso() };
+  }
+  function canManageHelp(r) { return iAmAdmin() || (!!myName() && r.posted_by === myName()); }
+  function helpCard(r) {
+    var li = el('li', 'card-item help' + (r.is_resolved ? ' resolved' : ''));
+    var cat = HELP_CATS[r.category] || HELP_CATS.other;
+    var top = el('div', 'top');
+    top.appendChild(el('strong', null, r.title));
+    top.appendChild(ei('span', 'help-cat', cat[1], cat[0]));
+    li.appendChild(top);
+    if (r.description) li.appendChild(el('p', 'help-desc', r.description));
+    var d = new Date(r.created_at);
+    li.appendChild(el('small', 'muted', 'Posted by ' + (r.posted_by || 'Someone') + (isNaN(d) ? '' : ' · ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))));
+    var vols = state.helpVols.filter(function (v) { return v.request_id === r.id; });
+    if (r.is_resolved) li.appendChild(ei('small', 'help-done', 'check', 'Resolved'));
+    if (vols.length) li.appendChild(ei('small', 'help-vols', 'users', vols.map(function (v) { return v.volunteer_name; }).join(', ') + (vols.length === 1 ? ' can help' : ' can help')));
+    var acts = el('div', 'help-acts');
+    var me = myName(), mine = vols.filter(function (v) { return v.volunteer_name === me; })[0];
+    if (!r.is_resolved) {
+      var hb = el('button', 'vol' + (mine ? ' on' : ''), mine ? 'Withdraw' : 'I can help');
+      hb.type = 'button';
+      hb.onclick = function () {
+        if (!me) { uiAlert('Log in to volunteer.'); return; }
+        if (mine) {
+          state.helpVols = state.helpVols.filter(function (v) { return v.id !== mine.id; });
+          push({ t: 'help_volunteers', a: 'del', m: { id: mine.id } });
+        } else {
+          var v = { id: uid(), request_id: r.id, volunteer_name: me, created_at: nowIso() };
+          state.helpVols.push(v);
+          push({ t: 'help_volunteers', a: 'up', r: v });
+        }
+        renderHelp();
+      };
+      acts.appendChild(hb);
+    }
+    if (canManageHelp(r)) {
+      var rb = el('button', 'link', r.is_resolved ? 'Reopen' : 'Mark resolved');
+      rb.type = 'button';
+      rb.onclick = function () { r.is_resolved = !r.is_resolved; push({ t: 'help_requests', a: 'up', r: helpRow(r) }); renderHelp(); };
+      var db = el('button', 'link danger', 'Delete');
+      db.type = 'button';
+      db.onclick = async function () {
+        if (!(await uiConfirm('Delete this help request?'))) return;
+        state.helpReqs = state.helpReqs.filter(function (x) { return x.id !== r.id; });
+        state.helpVols = state.helpVols.filter(function (v) { return v.request_id !== r.id; });
+        push({ t: 'help_requests', a: 'del', m: { id: r.id } }); renderHelp();
+      };
+      acts.appendChild(rb); acts.appendChild(db);
+    }
+    li.appendChild(acts);
+    return li;
+  }
+  function renderHelp() {
+    var ul = $('help-list'); if (!ul) return;
+    ul.innerHTML = '';
+    var list = state.helpReqs.slice().sort(function (a, b) {
+      if (!!a.is_resolved !== !!b.is_resolved) return a.is_resolved ? 1 : -1;
+      return -byCreated(a, b);
+    });
+    if (!list.length) ul.appendChild(el('li', 'muted empty', 'No help requests yet.'));
+    list.forEach(function (r) { ul.appendChild(helpCard(r)); });
+  }
+  $('help-form').onsubmit = function (e) {
+    e.preventDefault();
+    var title = $('h-title').value.trim();
+    if (!title) return;
+    var me = myName();
+    if (!me) { uiAlert('Log in to post a request.'); return; }
+    var r = { id: uid(), title: title, description: $('h-desc').value.trim(), category: $('h-cat').value, posted_by: me, is_resolved: false, created_at: nowIso() };
+    state.helpReqs.push(r);
+    push({ t: 'help_requests', a: 'up', r: helpRow(r) });
+    announce('help', 'New help request from ' + me + ' (' + (HELP_CATS[r.category] || HELP_CATS.other)[0].toLowerCase() + '): ' + title);
+    $('help-form').reset(); $('help-fold').open = false; renderHelp();
+  };
+
+  // ---------- announcement bot ----------
+  // Posts to chat_messages as sender "Figuig PA"; body is "[bot:<kind>]<text>" so no schema change is needed.
+  var BOT_NAME = 'Figuig PA';
+  function parseBot(body) {
+    var m = /^\[bot(?::(\w+))?\]([\s\S]*)$/.exec(body || '');
+    return m ? { kind: m[1] || '', text: m[2] } : null;
+  }
+  function announce(kind, text) {
+    var m = { id: uid(), sender: BOT_NAME, body: '[bot:' + kind + ']' + text, created_at: nowIso() };
+    addChat(m, false);
+    push({ t: 'chat_messages', a: 'up', r: m });
+  }
+
   // ---------- chat admins ----------
   function isAdmin(name) {
     var k = (name || '').toLowerCase();
@@ -1327,6 +1439,7 @@
       state.pollOpts.push(o);
       push({ t: 'poll_options', a: 'up', r: o });
     });
+    announce('poll', 'New poll: ' + q);
     resetPollForm(); $('poll-fold').open = false; renderPolls();
   };
   resetPollForm();
@@ -1360,7 +1473,7 @@
     var m = /^\[re\]([^|\n]*)\|([^|\n]*)\|([^\n]*)\n([\s\S]*)$/.exec(body || '');
     return m ? { id: decodeURIComponent(m[1]), who: decodeURIComponent(m[2]), snip: decodeURIComponent(m[3]), text: m[4] } : null;
   }
-  function plainBody(body) { var r = parseReply(body); return r ? r.text : body; }
+  function plainBody(body) { var b = parseBot(body); if (b) return b.text; var r = parseReply(body); return r ? r.text : body; }
   function snippetOf(body) {
     var md = parseMedia(body); if (md) return md.type === 'img' ? 'Photo' : 'Voice message';
     return plainBody(body).replace(/\s+/g, ' ').slice(0, 80);
@@ -1557,6 +1670,17 @@
     state.chat.forEach(function (m) {
       var day = fmtDay(m.created_at);
       if (day !== lastDay) { box.appendChild(el('div', 'day', day)); lastDay = day; lastSender = ''; }
+      var bot = parseBot(m.body);
+      if (bot) {
+        var br = el('div', 'row bot'); br.dataset.id = m.id;
+        var bb = el('div', 'bubble bot');
+        var bh = ei('div', 'bot-who', 'megaphone', BOT_NAME);
+        bb.appendChild(bh); bb.appendChild(linkifyBody(bot.text));
+        bb.appendChild(el('span', 'time', fmtTime(m.created_at)));
+        br.appendChild(bb); box.appendChild(br);
+        lastSender = '';
+        return;
+      }
       var mine = !!me && m.sender === me, first = lastSender !== m.sender;
       var row = el('div', 'row ' + (mine ? 'mine' : 'theirs') + (first ? ' first' : ''));
       row.dataset.id = m.id;
@@ -2321,7 +2445,7 @@
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderPolls(); renderChat(); renderMembers(); renderAlbum();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderHelp(); renderPolls(); renderChat(); renderMembers(); renderAlbum();
   }
   renderTeamName();
   renderTeamPic();
