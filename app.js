@@ -545,7 +545,7 @@
   var ICON = { available: 'checkcircle', unavailable: 'ban', injured: 'medical', maybe: 'help' };
   function getAvail(pid, plid) { return (state.avail[pid] || {})[plid] || 'maybe'; }
   function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
-  function teamable(a) { return a === 'maybe' || a === 'available'; }
+  function teamable(a) { return a === 'available'; }
 
   // ---------- navigation: 5 panes (Games / Gathering / Chat / Polls / Photos) ----------
   var paneOf = { polls: 'polls-pane', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'album-pane', chat: 'chat-pane' };
