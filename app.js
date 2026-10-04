@@ -163,7 +163,9 @@
       "refresh": "<polyline points=\"23 4 23 10 17 10\"/><path d=\"M20.49 15a9 9 0 1 1-2.12-9.36L23 10\"/>",
       "megaphone": "<path d=\"M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z\"/><path d=\"M15.5 8.5a5 5 0 0 1 0 7\"/><path d=\"M18.5 5.5a9 9 0 0 1 0 13\"/>",
       "car": "<path d=\"M5 17H3v-5l2-5h12l3 5v5h-2\"/><circle cx=\"7.5\" cy=\"17\" r=\"2\"/><circle cx=\"16.5\" cy=\"17\" r=\"2\"/><line x1=\"9.5\" y1=\"17\" x2=\"14.5\" y2=\"17\"/><line x1=\"3\" y1=\"12\" x2=\"20\" y2=\"12\"/>",
-      "alert": "<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>"
+      "alert": "<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>",
+      "logout": "<path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/>",
+      "drive": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M21 12c0 1.66-4 3-9 3s-9-1.34-9-3\"/><path d=\"M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5\"/>"
   };
   function svg(n) { return '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
   function setIc(node, n, text) {
@@ -360,36 +362,52 @@
   }
   function teamSettings() {
     var old = $('teamMenu'); if (old) old.remove();
-    var ov = el('div', 'tm-overlay'); ov.id = 'teamMenu';
-    var box = el('div', 'tm-box');
-    var b1 = el('button', 'tm-btn', 'Change team name');
-    var b2 = el('button', 'tm-btn', 'Change team picture');
-    var b3 = el('button', 'tm-btn tm-cancel', 'Cancel');
+    var ov = el('div', 'tm-overlay st-overlay'); ov.id = 'teamMenu';
+    var box = el('div', 'tm-box st-box');
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Settings');
+    function close() {
+      if (ov.classList.contains('closing')) return;
+      ov.classList.add('closing');
+      setTimeout(function () { ov.remove(); }, 200);
+    }
+    function row(icon, label, cls) {
+      var b = el('button', 'st-row' + (cls ? ' ' + cls : ''));
+      b.type = 'button';
+      b.innerHTML = svg(icon);
+      b.appendChild(el('span', 'st-label', label));
+      return b;
+    }
+    function section(title) { return el('div', 'st-head', title); }
     var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true;
-    b1.type = b2.type = b3.type = 'button';
+    var b1 = row('edit', 'Change team name');
+    var b2 = row('camera', 'Change team picture');
     b1.onclick = function () { ov.remove(); editTeamName(); };
     b2.onclick = function () { fi.click(); };
     fi.onchange = function () { var f = fi.files && fi.files[0]; ov.remove(); changeTeamPic(f); };
-    b3.onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
-    var sInfo = el('div', 'tm-storage', 'Storage: calculating…'), b4 = el('button', 'tm-btn', 'Clear cached media');
-    b4.type = 'button';
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    var sInfo = el('div', 'tm-storage st-storage', 'Storage: calculating…'), b4 = row('trash', 'Clear cached media');
+    sInfo.insertAdjacentHTML('afterbegin', svg('drive'));
+    var sTxt = el('span', '', 'Storage: calculating…'); sInfo.lastChild.remove(); sInfo.appendChild(sTxt);
     function showUsage() {
-      mediaUsage().then(function (u) { sInfo.textContent = 'Storage: ' + fmtBytes(u.bytes) + ' of media on this device (' + u.n + ' file' + (u.n === 1 ? '' : 's') + ')'; b4.disabled = !u.n; })
-        .catch(function () { sInfo.textContent = 'Storage: local media unavailable'; b4.disabled = true; });
+      mediaUsage().then(function (u) { sTxt.textContent = 'Storage: ' + fmtBytes(u.bytes) + ' of media on this device (' + u.n + ' file' + (u.n === 1 ? '' : 's') + ')'; b4.disabled = !u.n; })
+        .catch(function () { sTxt.textContent = 'Storage: local media unavailable'; b4.disabled = true; });
     }
     b4.onclick = async function () {
       if (!(await uiConfirm('Clear cached photos and voice messages from this device? They will re-download when viewed.', { title: 'Clear cached media?', ok: 'Clear' }))) return;
-      mediaClear().then(showUsage).catch(function () { sInfo.textContent = 'Could not clear cache'; });
+      mediaClear().then(showUsage).catch(function () { sTxt.textContent = 'Could not clear cache'; });
     };
     showUsage();
-    var b5 = el('button', 'tm-btn tm-logout', 'Log out' + (myName() ? ' (' + myName() + ')' : ''));
-    b5.type = 'button';
+    var b5 = row('logout', 'Log out' + (myName() ? ' (' + myName() + ')' : ''), 'st-danger');
     b5.onclick = async function () {
       if (!(await uiConfirm('Log out of this device? You will need your PIN to get back in.', { title: 'Log out?', ok: 'Log out', danger: true }))) return;
       ov.remove(); logout();
     };
-    box.appendChild(b1); box.appendChild(b2); box.appendChild(sInfo); box.appendChild(b4); box.appendChild(b5); box.appendChild(b3); box.appendChild(fi);
+    var b3 = el('button', 'st-cancel', 'Cancel'); b3.type = 'button'; b3.onclick = close;
+    box.appendChild(el('div', 'st-grab'));
+    box.appendChild(section('Team')); box.appendChild(b1); box.appendChild(b2);
+    box.appendChild(section('Device')); box.appendChild(sInfo); box.appendChild(b4);
+    box.appendChild(el('div', 'st-sep')); box.appendChild(b5);
+    box.appendChild(b3); box.appendChild(fi);
     ov.appendChild(box); document.body.appendChild(ov);
   }
   function push(op) { state.outbox.push(op); save(); flush(); }
