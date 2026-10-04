@@ -209,7 +209,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], helpReqs: [], helpVols: [], admins: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], helpReqs: [], helpVols: [], announcements: [], admins: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -450,6 +450,7 @@
     }
     var helpRes = await Promise.all(['help_requests', 'help_volunteers'].map(function (t) { return sb.from(t).select('*'); }));
     var helpOk = !helpRes[0].error && !helpRes[1].error; // tables not created yet: keep local help data
+    var annRes = await sb.from('announcements').select('*'); // table not created yet: keep local
     var photosRes = await sb.from('photos').select('*');
     var albumsRes = await sb.from('albums').select('*');
     var ad = await sb.from('chat_admins').select('*');
@@ -479,6 +480,7 @@
       state.pollOpts = pres[1].data.sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
       state.pollVotes = pres[2].data;
     }
+    if (!annRes.error) state.announcements = annRes.data.sort(byCreated);
     if (helpOk) { state.helpReqs = helpRes[0].data.sort(byCreated); state.helpVols = helpRes[1].data.sort(byCreated); }
     if (adminsOk) state.admins = ad.data.sort(byCreated).map(function (r) { return r.name; });
     state.lineup.pos = {};
@@ -529,13 +531,20 @@
       if (p.eventType !== 'DELETE') state.helpVols.push(r);
       save(); renderHelp();
     }).subscribe();
+    sb.channel('ann-live').on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, function (p) {
+      var r = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!r || !r.id || state.outbox.length) return;
+      state.announcements = state.announcements.filter(function (x) { return x.id !== r.id; });
+      if (p.eventType !== 'DELETE') state.announcements.push(r);
+      state.announcements.sort(byCreated); save(); renderAnnouncements();
+    }).subscribe();
     sb.channel('admins-live').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_admins' }, function (p) {
       var r = p.eventType === 'DELETE' ? p.old : p.new;
       if (!r || !r.name) return;
       var k = r.name.toLowerCase();
       state.admins = state.admins.filter(function (n) { return n.toLowerCase() !== k; });
       if (p.eventType !== 'DELETE') state.admins.push(r.name);
-      save(); renderChat(); renderPolls(); renderMembers();
+      save(); renderChat(); renderPolls(); renderAnnouncements(); renderMembers();
     }).subscribe();
   }
 
@@ -602,11 +611,12 @@
   document.querySelectorAll('.bottombar button').forEach(function (b) { b.onclick = function () { showTab(lastSub[b.dataset.pane]); }; });
 
 
-  // ---------- + menu (new poll / new help request) ----------
+  // ---------- + menu (new poll / help request / announcement) ----------
   (function () {
     var fab = $('qa-fab'), wrap = $('qa-sheet'), hideT = null;
     function setOpen(on) {
       clearTimeout(hideT);
+      wrap.querySelector('[data-qa="ann"]').hidden = !iAmAdmin();
       fab.classList.toggle('open', on); fab.setAttribute('aria-expanded', on);
       if (on) { wrap.hidden = false; void wrap.offsetWidth; wrap.classList.add('show'); }
       else { wrap.classList.remove('show'); hideT = setTimeout(function () { wrap.hidden = true; }, 300); }
@@ -617,13 +627,15 @@
     }
     var actions = {
       poll: function () { openView('poll-view', 'poll-fold', 'poll-q'); },
-      help: function () { openView('help-view', 'help-fold', 'h-title'); }
+      help: function () { openView('help-view', 'help-fold', 'h-title'); },
+      ann: function () { renderAnnouncements(); if (!iAmAdmin()) { uiAlert('Only admins can post announcements.'); return; } openView('ann-view', 'ann-fold', 'ann-title'); }
     };
-    ['help', 'poll'].forEach(function (k) { $(k + '-close').onclick = function () { $(k + '-view').hidden = true; }; });
+    ['help', 'poll', 'ann'].forEach(function (k) { $(k + '-close').onclick = function () { $(k + '-view').hidden = true; }; });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || document.querySelector('.md-overlay')) return;
       if (wrap.classList.contains('show')) { setOpen(false); return; }
-      if (!$('poll-view').hidden) $('poll-view').hidden = true;
+      if (!$('ann-view').hidden) $('ann-view').hidden = true;
+      else if (!$('poll-view').hidden) $('poll-view').hidden = true;
       else if (!$('help-view').hidden) $('help-view').hidden = true;
     });
     fab.onclick = function () { setOpen(!wrap.classList.contains('show')); };
@@ -1438,6 +1450,47 @@
   function iAmAdmin() { return isAdmin(myName()); }
   // With no admins yet nobody can enforce anything, so polls stay deletable by everyone until the first claim.
   function canDeletePoll() { return !state.admins.length || iAmAdmin(); }
+
+
+  // ---------- announcements (admin-only; also posted to chat by the bot) ----------
+  function annCard(n) {
+    var li = el('li', 'card-item announcement');
+    var top = el('div', 'top');
+    top.appendChild(el('strong', null, n.title));
+    if (iAmAdmin()) {
+      var del = el('button', 'link danger', 'Delete'); del.type = 'button';
+      del.onclick = async function () {
+        if (!(await uiConfirm('Delete this announcement?'))) return;
+        state.announcements = state.announcements.filter(function (x) { return x.id !== n.id; });
+        push({ t: 'announcements', a: 'del', m: { id: n.id } }); renderAnnouncements();
+      };
+      top.appendChild(del);
+    }
+    li.appendChild(top);
+    li.appendChild(el('p', 'help-desc', n.message));
+    var d = new Date(n.created_at);
+    li.appendChild(el('small', 'muted', 'Posted by ' + (n.posted_by || 'Admin') + (isNaN(d) ? '' : ' · ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + fmtTime(n.created_at))));
+    return li;
+  }
+  function renderAnnouncements() {
+    var ul = $('ann-list'); if (!ul) return;
+    $('ann-fold').hidden = !iAmAdmin();
+    ul.innerHTML = '';
+    var list = state.announcements.slice().sort(function (a, b) { return -byCreated(a, b); });
+    if (!list.length) ul.appendChild(el('li', 'muted empty', 'No announcements yet.'));
+    list.forEach(function (n) { ul.appendChild(annCard(n)); });
+  }
+  $('ann-form').onsubmit = function (e) {
+    e.preventDefault();
+    if (!iAmAdmin()) { uiAlert('Only admins can post announcements.'); return; }
+    var title = $('ann-title').value.trim(), message = $('ann-msg').value.trim();
+    if (!title || !message) return;
+    var n = { id: uid(), title: title, message: message, posted_by: myName(), created_at: nowIso() };
+    state.announcements.push(n);
+    push({ t: 'announcements', a: 'up', r: n });
+    announce('announcement', title + '\n' + message);
+    $('ann-form').reset(); $('ann-fold').open = false; renderAnnouncements();
+  };
 
   // ---------- polls ----------
   function pollOptsOf(pid) {
@@ -2325,7 +2378,7 @@
     } else {
       push({ t: 'chat_admins', a: 'del', m: { name: stored } });
     }
-    save(); renderMembers(); renderChat(); renderPolls();
+    save(); renderMembers(); renderChat(); renderPolls(); renderAnnouncements();
   }
   function renderMembers() {
     var box = $('members-body');
@@ -2528,7 +2581,7 @@
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderHelp(); renderPolls(); renderCalendar(); renderChat(); renderMembers(); renderAlbum();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderHelp(); renderPolls(); renderAnnouncements(); renderCalendar(); renderChat(); renderMembers(); renderAlbum();
   }
   renderTeamName();
   renderTeamPic();

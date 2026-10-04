@@ -197,3 +197,16 @@ create policy "open" on help_volunteers for all using (true) with check (true);
 alter publication supabase_realtime add table help_requests;
 alter publication supabase_realtime add table help_volunteers;
 -- Announcement bot: no schema change. Bot posts are chat_messages with sender 'Figuig PA' and body '[bot:<kind>]<text>'.
+
+-- Announcements (admin-only posts; also auto-posted to chat by the bot)
+create table if not exists announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  message text not null,
+  posted_by text,
+  created_at timestamptz default now()
+);
+alter table announcements enable row level security;
+drop policy if exists "open" on announcements;
+create policy "open" on announcements for all using (true) with check (true);
+alter publication supabase_realtime add table announcements;

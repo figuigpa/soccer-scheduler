@@ -641,3 +641,8 @@ body.on-chat .qa-fab{display:none}
 .cal-legend{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:8px;font-size:.74rem;color:var(--sub)}
 .cal-key{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:8px}
 .cal-item{cursor:pointer}
+
+.card-item.announcement textarea{width:100%}
+.help-view textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;resize:vertical}
+.card-item.announcement .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.card-item.announcement .help-desc{white-space:pre-wrap}
