@@ -2544,15 +2544,28 @@
       boxes.forEach(function (b) { b.value = ''; }); boxes[0].focus();
     }
   }
+  function fillFrom(i, digits) {
+    for (var k = 0; k < digits.length && i + k < 4; k++) boxes[i + k].value = digits[k];
+    var next = Math.min(i + digits.length, 3);
+    boxes[next].focus();
+    if (pinValue().length === 4) submitPin();
+  }
+  function backFrom(i) { if (i > 0) { boxes[i - 1].value = ''; boxes[i - 1].focus(); } }
   boxes.forEach(function (b, i) {
+    b.removeAttribute('maxlength'); // a full box must still accept a new digit; the handler trims to one
     b.addEventListener('input', function () {
-      b.value = b.value.replace(/\D/g, '').slice(-1);
+      var d = b.value.replace(/\D/g, '');
       $('gate-err').textContent = ''; $('pin-boxes').classList.remove('bad');
-      if (b.value && i < 3) boxes[i + 1].focus();
-      if (pinValue().length === 4) submitPin();
+      if (!d) { b.value = ''; return; }
+      b.value = d[0];
+      if (d.length > 1) fillFrom(i + 1, d.slice(1)); // autofill / multi-char input spills into following boxes
+      else { if (i < 3) boxes[i + 1].focus(); if (pinValue().length === 4) submitPin(); }
+    });
+    b.addEventListener('beforeinput', function (e) { // Android keyboards often skip keydown for Backspace on an empty box
+      if (e.inputType === 'deleteContentBackward' && !b.value) { e.preventDefault(); backFrom(i); }
     });
     b.addEventListener('keydown', function (e) {
-      if (e.key === 'Backspace' && !b.value && i > 0) { boxes[i - 1].value = ''; boxes[i - 1].focus(); e.preventDefault(); }
+      if (e.key === 'Backspace' && !b.value && i > 0) { backFrom(i); e.preventDefault(); }
       else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
       else if (e.key === 'ArrowRight' && i < 3) boxes[i + 1].focus();
     });
