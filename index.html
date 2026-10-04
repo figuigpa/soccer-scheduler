@@ -28,8 +28,7 @@
     <p class="gate-sub" id="gate-sub">Enter your 4-digit invitation PIN</p>
     <form id="gate-form" autocomplete="off">
       <div class="pin-boxes" id="pin-boxes">
-        <div class="pin-box"></div><div class="pin-box"></div><div class="pin-box"></div><div class="pin-box"></div>
-        <input type="tel" inputmode="numeric" maxlength="4" id="pin-input" class="pin-hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="4-digit PIN">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="PIN digit 1"><input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="PIN digit 2"><input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="PIN digit 3"><input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="PIN digit 4">
       </div>
       <p id="gate-err" class="gate-err" role="alert" aria-live="polite"></p>
       <button id="gate-go" class="gate-btn" type="submit">Enter</button>

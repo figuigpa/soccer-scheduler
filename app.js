@@ -2499,22 +2499,15 @@
     if (!p) { if (state.players.length) { console.warn('[gate] saved PIN no longer matches any player; logging out'); lsDel(PIN_KEY); lsDel(NAME_KEY); lockGate('Your PIN is no longer valid. Enter your new PIN.'); } return; }
     if (p.name !== myName()) { localStorage.setItem(NAME_KEY, p.name); renderAll(); }
   }
-  var pinInput = $('pin-input'), pinBoxEls = Array.prototype.slice.call(document.querySelectorAll('#pin-boxes .pin-box'));
-  function pinValue() { return pinInput.value; }
-  function renderBoxes() {
-    var v = pinInput.value, focused = document.activeElement === pinInput;
-    pinBoxEls.forEach(function (bx, i) {
-      bx.textContent = v[i] ? '\u25CF' : '';
-      bx.classList.toggle('active', focused && i === Math.min(v.length, 3));
-    });
-  }
-  function focusPin() { pinInput.focus(); renderBoxes(); }
+  var pinBoxEls = Array.prototype.slice.call(document.querySelectorAll('#pin-boxes .pin-box'));
+  function pinValue() { return pinBoxEls.map(function (b) { return b.value; }).join(''); }
+  function focusPin(i) { var b = pinBoxEls[i || 0]; if (b) { b.focus(); b.select(); } }
   function resetBoxes(msg) {
-    pinInput.value = ''; renderBoxes();
+    pinBoxEls.forEach(function (b) { b.value = ''; });
     $('gate-err').textContent = msg || '';
     $('pin-boxes').classList.remove('bad');
     if (!document.body.classList.contains('locked')) return;
-    setTimeout(focusPin, 60);
+    setTimeout(function () { focusPin(0); }, 60);
   }
   async function verifyPin(pin) {
     var p = pinOf(pin);
@@ -2549,19 +2542,31 @@
     } else {
       $('gate-err').textContent = r.err;
       var pb = $('pin-boxes'); pb.classList.remove('bad'); void pb.offsetWidth; pb.classList.add('bad');
-      pinInput.value = ''; renderBoxes(); pinInput.focus();
+      resetBoxes(r.err);
     }
   }
-  pinInput.addEventListener('input', function () {
-    var d = pinInput.value.replace(/\D/g, '').slice(0, 4);
-    if (pinInput.value !== d) pinInput.value = d;
-    $('gate-err').textContent = ''; $('pin-boxes').classList.remove('bad');
-    renderBoxes();
-    if (d.length === 4) submitPin();
+  pinBoxEls.forEach(function (box, i) {
+    box.addEventListener('input', function () {
+      var d = box.value.replace(/\D/g, '');
+      $('gate-err').textContent = ''; $('pin-boxes').classList.remove('bad');
+      if (d.length > 1) { // paste / autofill of several digits: spread across boxes
+        for (var k = 0; k < pinBoxEls.length - i; k++) pinBoxEls[i + k].value = d[k] || '';
+        var last = Math.min(i + d.length, 4) - 1;
+        if (pinValue().length === 4) { pinBoxEls[3].blur(); submitPin(); } else focusPin(last + 1);
+        return;
+      }
+      box.value = d;
+      if (!d) return;
+      if (i < 3) focusPin(i + 1);
+      else if (pinValue().length === 4) { box.blur(); submitPin(); }
+    });
+    box.addEventListener('keydown', function (e) {
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !box.value && i > 0) {
+        e.preventDefault(); pinBoxEls[i - 1].value = ''; focusPin(i - 1);
+      }
+    });
+    box.addEventListener('focus', function () { box.select(); });
   });
-  pinInput.addEventListener('focus', renderBoxes);
-  pinInput.addEventListener('blur', renderBoxes);
-  $('pin-boxes').addEventListener('click', focusPin);
   $('gate-form').onsubmit = function (e) { e.preventDefault(); submitPin(); };
 
   // First-run bootstrap: while nobody has a PIN, the first person picks their name, sets a PIN and becomes admin.
