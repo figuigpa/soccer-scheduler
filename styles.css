@@ -41,7 +41,7 @@ h4{margin:0 0 8px;font-size:.92rem}
 .fold[open]{border-color:var(--yellow)}
 .fold summary{list-style:none;cursor:pointer;padding:15px 16px;font-weight:800;color:var(--green);display:flex;align-items:center;justify-content:space-between;min-height:54px}
 .fold summary::-webkit-details-marker{display:none}
-.fold summary::after{content:"▾";transition:transform .2s;color:var(--sub)}
+.fold summary::after{content:"";width:18px;height:18px;background:var(--sub);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center/contain no-repeat;transition:transform .2s}
 .fold[open] summary::after{transform:rotate(180deg)}
 .fold form{padding:0 16px 16px}
 label{display:block;font-weight:700;font-size:.8rem;margin:12px 0;color:#3d5444;letter-spacing:.2px}
@@ -221,3 +221,29 @@ body.on-chat{overflow:hidden;padding-bottom:0}
 
 .tm-storage{font-size:.85rem;color:#555;text-align:center;padding:4px 2px 0}
 .tm-btn:disabled{opacity:.5}
+
+/* icons */
+svg.i{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em;margin-right:.4em}
+svg.i:only-child{margin-right:0}
+.fold summary{justify-content:flex-start}
+.fold summary::after{margin-left:auto}
+.fold summary svg.i{width:1.2em;height:1.2em}
+.crest svg.i{width:26px;height:26px;margin:0;color:var(--green)}
+.gear svg.i{width:20px;height:20px;margin:0}
+.bottombar .ic svg.i{width:26px;height:26px;margin:0;display:block}
+.bottombar .ic{filter:none;opacity:.75}
+.bottombar button.active .ic{opacity:1}
+.del svg.i,.edit svg.i{width:18px;height:18px;margin:0}
+.del.sm svg.i{width:15px;height:15px}
+.chat-bar .tool{display:grid;place-items:center;width:38px;height:38px;color:var(--green)}
+.chat-bar .tool svg.i{width:24px;height:24px;margin:0}
+.chat-bar .tool.on{color:#fff}
+.send svg.i{width:20px;height:20px;margin:0 2px 0 0}
+.vplay{display:grid;place-items:center}
+.vplay svg.i{width:16px;height:16px;margin:0}
+.badge svg.i,.admin-badge svg.i{width:1em;height:1em;margin-right:.3em;vertical-align:-.15em}
+.who svg.i{width:.9em;height:.9em;margin:0 0 0 .3em;color:#c99700;fill:#f6c945}
+.list li.injured strong svg.i,#out svg.i{color:var(--red)}
+#viewer-close svg.i{width:20px;height:20px;margin:0}
+.viewer-del svg.i{vertical-align:-.25em}
+.balance svg.i{vertical-align:-.25em}

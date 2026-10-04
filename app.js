@@ -26,6 +26,54 @@
     if (text != null) e.textContent = text;
     return e;
   }
+
+  // ---------- icons (inline SVG, Feather-style line icons) ----------
+  var IC = {
+      "ball": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"12 8 15.5 10.5 14.2 14.5 9.8 14.5 8.5 10.5\"/><path d=\"M12 8V2.3M15.5 10.5l5.3-1.8M14.2 14.5l3.3 4.5M9.8 14.5l-3.3 4.5M8.5 10.5L3.2 8.7\"/>",
+      "calendar": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/>",
+      "gift": "<rect x=\"3\" y=\"8\" width=\"18\" height=\"4\"/><path d=\"M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5\"/>",
+      "chat": "<path d=\"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z\"/>",
+      "users": "<path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75\"/>",
+      "user": "<path d=\"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>",
+      "checkcircle": "<path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><polyline points=\"22 4 12 14.01 9 11.01\"/>",
+      "check": "<polyline points=\"20 6 9 17 4 12\"/>",
+      "shirt": "<path d=\"M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z\"/>",
+      "clipboard": "<rect x=\"8\" y=\"2\" width=\"8\" height=\"4\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/>",
+      "chart": "<path d=\"M18 20V10M12 20V4M6 20v-6\"/>",
+      "camera": "<path d=\"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z\"/><circle cx=\"12\" cy=\"13\" r=\"4\"/>",
+      "mic": "<path d=\"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><line x1=\"12\" y1=\"19\" x2=\"12\" y2=\"23\"/><line x1=\"8\" y1=\"23\" x2=\"16\" y2=\"23\"/>",
+      "send": "<line x1=\"22\" y1=\"2\" x2=\"11\" y2=\"13\"/><polygon points=\"22 2 15 22 11 13 2 9 22 2\"/>",
+      "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"/>",
+      "edit": "<path d=\"M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z\"/>",
+      "trash": "<polyline points=\"3 6 5 6 21 6\"/><path d=\"M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2\"/>",
+      "plus": "<line x1=\"12\" y1=\"5\" x2=\"12\" y2=\"19\"/><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/>",
+      "x": "<line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>",
+      "pin": "<path d=\"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/>",
+      "medical": "<path d=\"M9 3h6v6h6v6h-6v6H9v-6H3V9h6z\"/>",
+      "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"4.93\" y1=\"4.93\" x2=\"19.07\" y2=\"19.07\"/>",
+      "help": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>",
+      "package": "<path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><polyline points=\"3.27 6.96 12 12.01 20.73 6.96\"/><line x1=\"12\" y1=\"22.08\" x2=\"12\" y2=\"12\"/>",
+      "home": "<path d=\"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>",
+      "star": "<polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/>",
+      "play": "<polygon points=\"6 4 20 12 6 20 6 4\"/>",
+      "pause": "<rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"/><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"/>",
+      "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/>",
+      "chevdown": "<polyline points=\"6 9 12 15 18 9\"/>",
+      "chevright": "<polyline points=\"9 18 15 12 9 6\"/>",
+      "alert": "<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>"
+  };
+  function svg(n) { return '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
+  function setIc(node, n, text) {
+    node.innerHTML = svg(n);
+    if (text) node.appendChild(document.createTextNode(text));
+    return node;
+  }
+  function ei(tag, cls, n, text) { return setIc(el(tag, cls), n, text); }
+  function hydrateIcons() {
+    var q = document.querySelectorAll('[data-ic]');
+    for (var i = 0; i < q.length; i++) { q[i].insertAdjacentHTML('afterbegin', svg(q[i].getAttribute('data-ic'))); q[i].removeAttribute('data-ic'); }
+  }
+  hydrateIcons();
   function nowIso() { return new Date().toISOString(); }
   function myName() { return localStorage.getItem(NAME_KEY) || ''; }
   function askName(msg) {
@@ -43,7 +91,7 @@
   function mapsBtn(url, addr) {
     var h = mapsHref(url, addr);
     if (!h) return null;
-    var a = el('a', 'maps-btn', '📍 Open in Maps');
+    var a = ei('a', 'maps-btn', 'pin', 'Open in Maps');
     a.href = h; a.target = '_blank'; a.rel = 'noopener noreferrer';
     return a;
   }
@@ -157,10 +205,10 @@
     if (u) {
       var im = document.createElement('img');
       im.alt = '';
-      im.onerror = function () { c.classList.remove('has-pic'); c.textContent = '⚽'; };
+      im.onerror = function () { c.classList.remove('has-pic'); setIc(c, 'ball'); };
       im.src = u;
       c.appendChild(im);
-    } else c.textContent = '⚽';
+    } else setIc(c, 'ball');
   }
   function setTeamPic(u) {
     if (!u || u === teamPic()) return;
@@ -352,7 +400,7 @@
   // ---------- status model ----------
   var NEXT = { maybe: 'available', available: 'unavailable', unavailable: 'injured', injured: 'maybe' };
   var LABEL = { available: 'Available', unavailable: 'Unavailable', injured: 'Injured', maybe: 'Maybe' };
-  var ICON = { available: '✅', unavailable: '🚫', injured: '🤕', maybe: '❔' };
+  var ICON = { available: 'checkcircle', unavailable: 'ban', injured: 'medical', maybe: 'help' };
   function getAvail(pid, plid) { return (state.avail[pid] || {})[plid] || 'maybe'; }
   function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
   function teamable(a) { return a === 'maybe' || a === 'available'; }
@@ -384,7 +432,7 @@
     var key = owner.practice_id ? 'practice_id' : 'event_id';
     var oid = owner[key];
     var wrap = el('div', 'sub');
-    wrap.appendChild(el('h4', null, '🎒 Bring list'));
+    wrap.appendChild(ei('h4', null, 'package', 'Bring list'));
     var items = state.items.filter(function (i) { return i[key] === oid; });
     var ul = el('ul', 'bring');
     if (!items.length) ul.appendChild(el('li', 'muted', 'Nothing yet — add what is needed.'));
@@ -394,7 +442,7 @@
       var t = el('strong', null, it.item);
       if (it.quantity) t.appendChild(el('span', 'qty', '× ' + it.quantity.replace(/^[x×]\s*/i, '')));
       info.appendChild(t);
-      if (it.volunteer_name) info.appendChild(el('small', null, '✓ ' + it.volunteer_name + ' is bringing it'));
+      if (it.volunteer_name) info.appendChild(ei('small', null, 'check', it.volunteer_name + ' is bringing it'));
       var btn = el('button', 'vol' + (it.volunteer_name ? ' on' : ''), it.volunteer_name ? 'Withdraw' : "I'll bring it");
       btn.onclick = function () {
         if (it.volunteer_name) it.volunteer_name = null;
@@ -405,7 +453,7 @@
         }
         pushItem(it); renderAll();
       };
-      var del = el('button', 'del sm', '✕');
+      var del = ei('button', 'del sm', 'x');
       del.setAttribute('aria-label', 'Remove item');
       del.onclick = function () {
         state.items = state.items.filter(function (x) { return x.id !== it.id; });
@@ -435,7 +483,7 @@
       quantity: it.quantity || null, volunteer_name: it.volunteer_name || null, created_at: it.created_at } });
   }
   function toggleBring(id, content) {
-    var b = el('button', 'link', openBring[id] ? '▾ Bring list' : '▸ Bring list');
+    var b = ei('button', 'link', openBring[id] ? 'chevdown' : 'chevright', 'Bring list');
     b.onclick = function () { openBring[id] = !openBring[id]; renderAll(); };
     return b;
   }
@@ -456,7 +504,7 @@
   function endPracticeEdit() {
     editingPractice = null; $('practice-form').reset(); $('practice-fold').open = false;
     $('practice-form').querySelector('button.primary').textContent = 'Add practice';
-    $('practice-fold').querySelector('summary').textContent = '＋ New practice';
+    setIc($('practice-fold').querySelector('summary'), 'plus', 'New practice');
     $('p-cancel').hidden = true;
   }
   $('p-cancel').onclick = function () { endPracticeEdit(); };
@@ -465,7 +513,7 @@
     $('p-date').value = p.date || ''; $('p-time').value = p.time || ''; $('p-place').value = p.location || '';
     $('p-addr').value = p.field_address || ''; $('p-map').value = p.field_map_url || ''; $('p-notes').value = p.notes || '';
     $('practice-form').querySelector('button.primary').textContent = 'Save changes';
-    $('practice-fold').querySelector('summary').textContent = '✎ Edit practice';
+    setIc($('practice-fold').querySelector('summary'), 'edit', 'Edit practice');
     $('p-cancel').hidden = false;
     $('practice-fold').open = true; $('practice-fold').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -474,10 +522,10 @@
     var top = el('div', 'top');
     var info = el('div', 'grow');
     info.appendChild(el('strong', null, fmt(p)));
-    if (p.location) info.appendChild(el('small', null, '⚽ ' + p.location));
-    if (p.field_address) info.appendChild(el('small', null, '📌 ' + p.field_address));
+    if (p.location) info.appendChild(ei('small', null, 'ball', p.location));
+    if (p.field_address) info.appendChild(ei('small', null, 'pin', p.field_address));
     if (p.notes) info.appendChild(el('small', 'notes', p.notes));
-    var del = el('button', 'del', '✕');
+    var del = ei('button', 'del', 'trash');
     del.setAttribute('aria-label', 'Delete practice');
     del.onclick = function () {
       if (!confirm('Delete this practice?')) return;
@@ -486,7 +534,7 @@
       delete state.avail[p.id]; delete state.teams[p.id];
       push({ t: 'practices', a: 'del', m: { id: p.id } }); renderAll();
     };
-    var edit = el('button', 'edit', '✎');
+    var edit = ei('button', 'edit', 'edit');
     edit.setAttribute('aria-label', 'Edit practice');
     edit.onclick = function () { startPracticeEdit(p); };
     top.appendChild(info); top.appendChild(edit); top.appendChild(del);
@@ -525,7 +573,7 @@
     $('player-count').textContent = state.players.length + ' player' + (state.players.length === 1 ? '' : 's');
     state.players.forEach(function (pl) {
       var li = el('li'); li.appendChild(el('strong', null, pl.name));
-      var del = el('button', 'del', '✕');
+      var del = ei('button', 'del', 'trash');
       del.setAttribute('aria-label', 'Remove ' + pl.name);
       del.onclick = function () {
         if (!confirm('Remove ' + pl.name + '?')) return;
@@ -571,8 +619,8 @@
     state.players.forEach(function (pl) {
       var a = getAvail(p.id, pl.id);
       var li = el('li', a);
-      li.appendChild(el('strong', null, (a === 'injured' ? '🤕 ' : '') + pl.name));
-      li.appendChild(el('span', 'badge ' + a, ICON[a] + ' ' + LABEL[a]));
+      li.appendChild((function () { var s = el('strong'); if (a === 'injured') setIc(s, 'medical'); s.appendChild(document.createTextNode(pl.name)); return s; })());
+      li.appendChild(ei('span', 'badge ' + a, ICON[a], LABEL[a]));
       li.onclick = function () {
         var m = state.avail[p.id] = state.avail[p.id] || {};
         m[pl.id] = NEXT[a];
@@ -599,7 +647,7 @@
       state.players.forEach(function (pl) {
         var a = getAvail(p.id, pl.id), t = teamOf(p.id, pl.id);
         if (!teamable(a)) {
-          $('out').appendChild(el('li', null, (a === 'injured' ? '🤕 ' : '') + pl.name + ' · ' + LABEL[a]));
+          $('out').appendChild((function () { var s = el('li'); if (a === 'injured') setIc(s, 'medical'); s.appendChild(document.createTextNode(pl.name + ' · ' + LABEL[a])); return s; })());
         } else if (t) {
           cnt[t]++;
           var li = el('li', null, pl.name + (a === 'maybe' ? ' ?' : ''));
@@ -618,8 +666,9 @@
     var diff = Math.abs(cnt.red - cnt.yellow), b = $('balance');
     b.className = 'balance' + (diff > 1 ? ' uneven' : '');
     b.textContent = diff > 1
-      ? '⚠ Uneven: ' + (cnt.red > cnt.yellow ? 'Red' : 'Yellow') + ' has ' + diff + ' more'
-      : cnt.red + cnt.yellow ? '✓ Teams are balanced' : 'Tap players below to build teams';
+      ? 'Uneven: ' + (cnt.red > cnt.yellow ? 'Red' : 'Yellow') + ' has ' + diff + ' more'
+      : cnt.red + cnt.yellow ? 'Teams are balanced' : 'Tap players below to build teams';
+    if (diff > 1) b.insertAdjacentHTML('afterbegin', svg('alert')); else if (cnt.red + cnt.yellow) b.insertAdjacentHTML('afterbegin', svg('check'));
     if (!$('pool').children.length) $('pool').appendChild(el('li', 'muted', p ? 'No unassigned players.' : 'Create a practice first.'));
     if (!$('out').children.length) $('out').appendChild(el('li', 'muted', 'None'));
   }
@@ -806,7 +855,7 @@
   function endEventEdit() {
     editingEvent = null; $('event-form').reset(); $('event-fold').open = false;
     $('event-form').querySelector('button.primary').textContent = 'Add event';
-    $('event-fold').querySelector('summary').textContent = '＋ New event';
+    setIc($('event-fold').querySelector('summary'), 'plus', 'New event');
     $('e-cancel').hidden = true;
   }
   $('e-cancel').onclick = function () { endEventEdit(); };
@@ -816,7 +865,7 @@
     $('e-venue').value = ev.venue_name || ''; $('e-addr').value = ev.venue_address || '';
     $('e-map').value = ev.venue_map_url || ''; $('e-notes').value = ev.notes || '';
     $('event-form').querySelector('button.primary').textContent = 'Save changes';
-    $('event-fold').querySelector('summary').textContent = '✎ Edit event';
+    setIc($('event-fold').querySelector('summary'), 'edit', 'Edit event');
     $('e-cancel').hidden = false;
     $('event-fold').open = true; $('event-fold').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -829,7 +878,7 @@
   }
   function assignments(ev) {
     var wrap = el('div', 'sub');
-    wrap.appendChild(el('h4', null, '📋 Who does what'));
+    wrap.appendChild(ei('h4', null, 'clipboard', 'Who does what'));
     var list = state.assignments.filter(function (a) { return a.event_id === ev.id; });
     var ul = el('ul', 'bring');
     if (!list.length) ul.appendChild(el('li', 'muted', 'No tasks yet.'));
@@ -840,8 +889,8 @@
       cb.onchange = function () { a.done = cb.checked; pushAssign(a); renderAll(); };
       var info = el('div', 'grow');
       info.appendChild(el('strong', a.done ? 'strike' : '', a.task));
-      if (a.assignee) info.appendChild(el('small', null, '👤 ' + a.assignee));
-      var del = el('button', 'del sm', '✕');
+      if (a.assignee) info.appendChild(ei('small', null, 'user', a.assignee));
+      var del = ei('button', 'del sm', 'x');
       del.setAttribute('aria-label', 'Remove task');
       del.onclick = function () {
         state.assignments = state.assignments.filter(function (x) { return x.id !== a.id; });
@@ -870,11 +919,11 @@
     var top = el('div', 'top');
     var info = el('div', 'grow');
     info.appendChild(el('strong', null, ev.title));
-    if (ev.date) info.appendChild(el('small', null, '🗓 ' + fmt(ev)));
-    if (ev.venue_name) info.appendChild(el('small', null, '🏠 ' + ev.venue_name));
-    if (ev.venue_address) info.appendChild(el('small', null, '📌 ' + ev.venue_address));
+    if (ev.date) info.appendChild(ei('small', null, 'calendar', fmt(ev)));
+    if (ev.venue_name) info.appendChild(ei('small', null, 'home', ev.venue_name));
+    if (ev.venue_address) info.appendChild(ei('small', null, 'pin', ev.venue_address));
     if (ev.notes) info.appendChild(el('small', 'notes', ev.notes));
-    var del = el('button', 'del', '✕');
+    var del = ei('button', 'del', 'trash');
     del.setAttribute('aria-label', 'Delete event');
     del.onclick = function () {
       if (!confirm('Delete this event?')) return;
@@ -883,7 +932,7 @@
       state.assignments = state.assignments.filter(function (x) { return x.event_id !== ev.id; });
       push({ t: 'events', a: 'del', m: { id: ev.id } }); renderAll();
     };
-    var edit = el('button', 'edit', '✎');
+    var edit = ei('button', 'edit', 'edit');
     edit.setAttribute('aria-label', 'Edit event');
     edit.onclick = function () { startEventEdit(ev); };
     top.appendChild(info); top.appendChild(edit); top.appendChild(del);
@@ -972,7 +1021,7 @@
   function addPollField(val) {
     var row = el('div', 'poll-field');
     var inp = el('input'); inp.type = 'text'; inp.placeholder = 'Option'; inp.value = val || '';
-    var x = el('button', 'link danger', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Remove option');
+    var x = ei('button', 'link danger', 'x'); x.type = 'button'; x.setAttribute('aria-label', 'Remove option');
     x.onclick = function () { if (pollFields().length > 2) { row.remove(); } };
     row.appendChild(inp); row.appendChild(x);
     $('poll-opts').appendChild(row);
@@ -1017,13 +1066,13 @@
     var nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     box.innerHTML = '';
     var me = myName(), lastDay = '', lastSender = '';
-    if (!state.chat.length) box.appendChild(el('div', 'chat-empty', 'No messages yet. Say hi 👋'));
+    if (!state.chat.length) box.appendChild(el('div', 'chat-empty', 'No messages yet. Say hi!'));
     state.chat.forEach(function (m) {
       var day = fmtDay(m.created_at);
       if (day !== lastDay) { box.appendChild(el('div', 'day', day)); lastDay = day; lastSender = ''; }
       var mine = !!me && m.sender === me;
       var b = el('div', 'bubble ' + (mine ? 'mine' : 'theirs') + (lastSender === m.sender ? ' cont' : ''));
-      if (!mine && lastSender !== m.sender) b.appendChild(el('div', 'who', m.sender + (isAdmin(m.sender) ? ' ⭐' : '')));
+      if (!mine && lastSender !== m.sender) b.appendChild((function () { var w = el('div', 'who', m.sender); if (isAdmin(m.sender)) w.insertAdjacentHTML('beforeend', svg('star')); return w; })());
       var media = parseMedia(m.body);
       if (media && media.type === 'img') {
         var im = el('img', 'img'); im.alt = 'Photo'; im.loading = 'lazy';
@@ -1070,7 +1119,7 @@
   function notify(m) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (!document.hidden && document.hasFocus()) return;
-    var pm = parseMedia(m.body), opts = { body: pm ? (pm.type === 'img' ? '📷 Photo' : '🎤 Voice message') : m.body, tag: 'rf-chat', icon: 'icon-192.png' };
+    var pm = parseMedia(m.body), opts = { body: pm ? (pm.type === 'img' ? 'Photo' : 'Voice message') : m.body, tag: 'rf-chat', icon: 'icon-192.png' };
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.ready) {
         navigator.serviceWorker.ready.then(function (r) { r.showNotification(m.sender, opts); }).catch(function () { new Notification(m.sender, opts); });
@@ -1284,30 +1333,30 @@
   $('chat-photo').onclick = function () { if (!myName() && !askName('Your name for chat')) return; $('chat-file').click(); };
   $('chat-file').onchange = async function () {
     var f = this.files && this.files[0]; this.value = ''; if (!f) return;
-    var btn = $('chat-photo'); btn.disabled = true; btn.textContent = '⏳';
+    var btn = $('chat-photo'); btn.disabled = true; setIc(btn, 'clock');
     try {
       var blob = await compress(f, 1280, 0.8), key = 'chat/' + Date.now() + '-' + rnd() + '.jpg';
       await mediaPut(key, blob).catch(function () {});
       await b2Put(key, blob, 'image/jpeg');
       sendMedia('[img]' + key);
     } catch (e) { alert('Could not send picture: ' + (e && e.message ? e.message : e)); }
-    btn.disabled = false; btn.textContent = '📷';
+    btn.disabled = false; setIc(btn, 'camera');
   };
 
   // voice playback
   var curAudio = null, curBtn = null;
   function voiceBubble(md) {
-    var w = el('div', 'voice'), btn = el('button', 'vplay', '▶'), bar = el('div', 'vbar'), fill = el('i'), dur = el('span', 'vdur', fmtDur(md.dur));
+    var w = el('div', 'voice'), btn = ei('button', 'vplay', 'play'), bar = el('div', 'vbar'), fill = el('i'), dur = el('span', 'vdur', fmtDur(md.dur));
     btn.type = 'button'; bar.appendChild(fill);
     w.appendChild(btn); w.appendChild(bar); w.appendChild(dur);
     var au = null;
-    function stop() { btn.textContent = '▶'; }
+    function stop() { setIc(btn, 'play'); }
     function ensure() {
       if (au) return Promise.resolve();
       au = new Audio(); au.preload = 'metadata';
       au.onended = function () { stop(); fill.style.width = '0'; };
       au.onpause = stop;
-      au.onplay = function () { btn.textContent = '⏸'; };
+      au.onplay = function () { setIc(btn, 'pause'); };
       au.ontimeupdate = function () {
         var d = isFinite(au.duration) && au.duration ? au.duration : md.dur;
         if (d) fill.style.width = Math.min(100, au.currentTime / d * 100) + '%';
@@ -1363,7 +1412,7 @@
       if (!r.send || !r.chunks.length) return;
       var secs = (Date.now() - r.start) / 1000;
       if (secs < 0.7) return;
-      var btn = $('chat-mic'); btn.disabled = true; btn.textContent = '⏳';
+      var btn = $('chat-mic'); btn.disabled = true; setIc(btn, 'clock');
       try {
         var key = 'voice/' + Date.now() + '.' + ext;
         var vblob = new Blob(r.chunks, { type: type });
@@ -1371,7 +1420,7 @@
         await b2Put(key, vblob, type);
         sendMedia('[voice]' + key + '|' + Math.round(secs));
       } catch (e) { alert('Could not send voice message: ' + (e && e.message ? e.message : e)); }
-      btn.disabled = false; btn.textContent = '🎤';
+      btn.disabled = false; setIc(btn, 'mic');
     };
     rec = r; mr.start();
     $('rec-bar').hidden = false; $('chat-mic').classList.add('on'); $('rec-time').textContent = '0:00';
@@ -1414,7 +1463,7 @@
     if (!state.admins.length) {
       var c = el('div', 'claim');
       c.appendChild(el('p', 'muted', 'This group has no admin yet. The first person to claim becomes admin and can then appoint others.'));
-      var cb = el('button', 'primary', '⭐ Claim admin');
+      var cb = ei('button', 'primary', 'star', 'Claim admin');
       cb.type = 'button';
       cb.onclick = function () {
         var n = myName() || askName('Your name for chat');
@@ -1423,14 +1472,14 @@
       c.appendChild(cb); box.appendChild(c);
     } else {
       box.appendChild(el('p', 'muted', amAdmin ? 'You are an admin: you can appoint admins and delete any message or poll.'
-        : 'Admins (⭐) can delete any message or poll and appoint other admins.'));
+        : 'Admins (star) can delete any message or poll and appoint other admins.'));
     }
     var ul = el('ul', 'member-list');
     memberNames().forEach(function (n) {
       var adm = isAdmin(n);
       var li = el('li', 'member' + (adm ? ' is-admin' : ''));
       li.appendChild(el('span', 'mname', n + (me && n.toLowerCase() === me.toLowerCase() ? ' (you)' : '')));
-      if (adm) li.appendChild(el('span', 'admin-badge', '⭐ Admin'));
+      if (adm) li.appendChild(ei('span', 'admin-badge', 'star', 'Admin'));
       if (amAdmin) {
         var b = el('button', 'link' + (adm ? ' danger' : ''), adm ? 'Remove admin' : 'Make admin');
         b.type = 'button';
