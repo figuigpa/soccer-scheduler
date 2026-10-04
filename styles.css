@@ -573,3 +573,5 @@ body.locked .gate{display:grid}
 .bubble .lp-title{font-weight:600;font-size:.88rem;color:#e9edef;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .bubble .lp-desc{font-size:.8rem;color:#8696a0;margin-top:1px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
 .bubble .lp-host{font-size:.74rem;color:#8696a0;margin-top:2px;text-transform:lowercase}
+
+.list li.list-h{background:none;border:0;box-shadow:none;padding:10px 2px 2px;font-weight:800;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--green)}

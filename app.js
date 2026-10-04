@@ -730,9 +730,11 @@
     var name = $('player-name').value.trim();
     if (!name) return;
     var pin = $('player-pin').value.trim();
+    if ($('player-cat').value === 'kid') pin = '';
     if (pin && !/^\d{4}$/.test(pin)) { uiAlert('PIN must be exactly 4 digits.'); return; }
     if (pin && pinTaken(pin)) { uiAlert('That PIN is already used by another player.'); return; }
-    var p = { id: uid(), name: name, category: $('player-cat').value === 'kid' ? 'kid' : 'adult', pin: pin || (canManagePins() ? freePin() : '') };
+    var kidNew = $('player-cat').value === 'kid';
+    var p = { id: uid(), name: name, category: kidNew ? 'kid' : 'adult', pin: kidNew ? '' : (pin || (canManagePins() ? freePin() : '')) };
     state.players.push(p);
     push({ t: 'players', a: 'up', r: playerRow(p) });
     e.target.reset(); renderAll();
@@ -741,7 +743,14 @@
     var ul = $('player-list'); ul.innerHTML = '';
     $('player-pin').hidden = !canManagePins();
     $('player-count').textContent = state.players.length + ' player' + (state.players.length === 1 ? '' : 's');
-    state.players.forEach(function (pl) {
+    [['Adults', false], ['Kids', true]].forEach(function (g) {
+      var group = state.players.filter(function (pl) { return (pl.category === 'kid') === g[1]; });
+      var h = el('li', 'list-h', g[0] + ' (' + group.length + ')');
+      h.setAttribute('role', 'presentation'); ul.appendChild(h);
+      if (!group.length) ul.appendChild(el('li', 'muted empty', g[1] ? 'No kids yet.' : 'No adults yet.'));
+      group.forEach(addRow);
+    });
+    function addRow(pl) {
       var li = el('li'); li.appendChild(el('strong', null, pl.name));
       var kid = pl.category === 'kid';
       var tag = el('button', 'cat-tag' + (kid ? ' kid' : ''), kid ? 'Kid' : 'Adult');
@@ -753,7 +762,7 @@
         renderAll();
       };
       li.appendChild(tag);
-      if (canManagePins()) {
+      if (!kid && canManagePins()) {
         var pb = el('button', 'pin-tag' + (pl.pin ? '' : ' none'), pl.pin ? 'PIN ' + pl.pin : 'Set PIN');
         pb.type = 'button';
         pb.setAttribute('aria-label', 'Set PIN for ' + pl.name);
@@ -780,7 +789,7 @@
         push({ t: 'players', a: 'del', m: { id: pl.id } }); renderAll();
       };
       li.appendChild(del); ul.appendChild(li);
-    });
+    }
   }
 
   // ---------- practice selectors ----------
@@ -2233,8 +2242,8 @@
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { console.warn('[gate] localStorage read failed', k, e); return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { console.warn('[gate] localStorage write failed', k, e); return false; } }
   function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { console.warn('[gate] localStorage remove failed', k, e); } }
-  function pinOf(pin) { return state.players.filter(function (p) { return p.pin && p.pin === pin; })[0] || null; }
-  function pinTaken(pin, exceptId) { return state.players.some(function (p) { return p.pin === pin && p.id !== exceptId; }); }
+  function pinOf(pin) { return state.players.filter(function (p) { return p.category !== 'kid' && p.pin && p.pin === pin; })[0] || null; }
+  function pinTaken(pin, exceptId) { return state.players.some(function (p) { return p.category !== 'kid' && p.pin === pin && p.id !== exceptId; }); }
   function freePin() {
     for (var i = 0; i < 500; i++) {
       var p = ('000' + Math.floor(Math.random() * 10000)).slice(-4);
@@ -2283,7 +2292,7 @@
       try {
         var r = await sb.from('players').select('*');
         if (!r.error && r.data) {
-          var row = r.data.filter(function (x) { return x.pin && x.pin === pin; })[0];
+          var row = r.data.filter(function (x) { return x.category !== 'kid' && x.pin && x.pin === pin; })[0];
           if (row) {
             p = { id: row.id, name: row.name, category: row.category === 'kid' ? 'kid' : 'adult', pin: row.pin };
             if (!state.players.some(function (x) { return x.id === p.id; })) { state.players.push(p); save(); }
