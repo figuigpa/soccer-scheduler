@@ -565,11 +565,11 @@
   function teamOf(pid, plid) { return (state.teams[pid] || {})[plid]; }
   function teamable(a) { return a === 'available'; }
 
-  // ---------- navigation: 5 panes (Games / Gathering / Chat / Polls / Photos) ----------
-  var paneOf = { polls: 'polls-pane', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'album-pane', chat: 'chat-pane' };
-  var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat', 'polls-pane': 'polls', 'album-pane': 'album' };
+  // ---------- navigation: 5 panes (Games / Gathering / Chat / Calendar / Photos) ----------
+  var paneOf = { calendar: 'cal-pane', practices: 'soccer', players: 'soccer', avail: 'soccer', teams: 'soccer', lineup: 'soccer', events: 'gather', album: 'album-pane', chat: 'chat-pane' };
+  var lastSub = { soccer: 'practices', gather: 'events', 'chat-pane': 'chat', 'cal-pane': 'calendar', 'album-pane': 'album' };
   var curTab = 'practices', beforeChat = 'practices';
-  var tabOrder = ['practices', 'players', 'avail', 'teams', 'lineup', 'events', 'chat', 'polls', 'album'];
+  var tabOrder = ['practices', 'players', 'avail', 'teams', 'lineup', 'events', 'chat', 'calendar', 'album'];
   var enterTimer = null;
   function showTab(name) {
     if (typeof setLuFull === 'function' && name !== 'lineup') setLuFull(false);
@@ -602,17 +602,87 @@
   document.querySelectorAll('.bottombar button').forEach(function (b) { b.onclick = function () { showTab(lastSub[b.dataset.pane]); }; });
 
 
-  // ---------- help-request FAB ----------
+  // ---------- + menu (new poll / new help request) ----------
   (function () {
-    var fab = $('qa-fab');
-    function openHelp() {
-      var v = $('help-view'); v.hidden = false; $('help-fold').open = true; v.querySelector('.help-body').scrollTop = 0;
-      setTimeout(function () { try { $('h-title').focus({ preventScroll: true }); } catch (e) { $('h-title').focus(); } }, 60);
+    var fab = $('qa-fab'), wrap = $('qa-sheet'), hideT = null;
+    function setOpen(on) {
+      clearTimeout(hideT);
+      fab.classList.toggle('open', on); fab.setAttribute('aria-expanded', on);
+      if (on) { wrap.hidden = false; void wrap.offsetWidth; wrap.classList.add('show'); }
+      else { wrap.classList.remove('show'); hideT = setTimeout(function () { wrap.hidden = true; }, 300); }
     }
-    $('help-close').onclick = function () { $('help-view').hidden = true; };
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('help-view').hidden && !document.querySelector('.md-overlay')) $('help-view').hidden = true; });
-    fab.onclick = openHelp;
+    function openView(id, foldId, inputId) {
+      var v = $(id); v.hidden = false; $(foldId).open = true; v.querySelector('.help-body').scrollTop = 0;
+      setTimeout(function () { try { $(inputId).focus({ preventScroll: true }); } catch (e) { $(inputId).focus(); } }, 60);
+    }
+    var actions = {
+      poll: function () { openView('poll-view', 'poll-fold', 'poll-q'); },
+      help: function () { openView('help-view', 'help-fold', 'h-title'); }
+    };
+    ['help', 'poll'].forEach(function (k) { $(k + '-close').onclick = function () { $(k + '-view').hidden = true; }; });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || document.querySelector('.md-overlay')) return;
+      if (wrap.classList.contains('show')) { setOpen(false); return; }
+      if (!$('poll-view').hidden) $('poll-view').hidden = true;
+      else if (!$('help-view').hidden) $('help-view').hidden = true;
+    });
+    fab.onclick = function () { setOpen(!wrap.classList.contains('show')); };
+    $('qa-scrim').onclick = function () { setOpen(false); };
+    wrap.querySelectorAll('button[data-qa]').forEach(function (b) {
+      b.onclick = function () { setOpen(false); actions[b.dataset.qa](); };
+    });
   })();
+
+  // ---------- calendar ----------
+  var calMonth = (function () { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
+  var calSel = null;
+  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function calEntries() {
+    var map = {};
+    state.practices.forEach(function (p) { if (p.date) (map[p.date] = map[p.date] || []).push({ kind: 'game', o: p }); });
+    state.events.forEach(function (e) { if (e.date) (map[e.date] = map[e.date] || []).push({ kind: 'event', o: e }); });
+    Object.keys(map).forEach(function (k) { map[k].sort(function (x, y) { return (x.o.time || '') < (y.o.time || '') ? -1 : 1; }); });
+    return map;
+  }
+  function renderCalendar() {
+    var grid = $('cal-grid'); if (!grid) return;
+    var map = calEntries(), today = ymd(new Date());
+    var y = calMonth.getFullYear(), m = calMonth.getMonth();
+    $('cal-title').textContent = calMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    if (!calSel) calSel = (today.slice(0, 7) === ymd(calMonth).slice(0, 7)) ? today : ymd(calMonth);
+    grid.innerHTML = '';
+    for (var i = 0; i < calMonth.getDay(); i++) grid.appendChild(el('span', 'cal-pad'));
+    for (var d = 1, n = new Date(y, m + 1, 0).getDate(); d <= n; d++) {
+      var key = ymd(new Date(y, m, d)), es = map[key] || [];
+      var b = el('button', 'cal-day' + (key === today ? ' today' : '') + (key === calSel ? ' sel' : ''));
+      b.type = 'button'; b.appendChild(el('span', 'cal-n', String(d)));
+      var dots = el('span', 'cal-dots');
+      if (es.some(function (x) { return x.kind === 'game'; })) dots.appendChild(el('i', 'g'));
+      if (es.some(function (x) { return x.kind === 'event'; })) dots.appendChild(el('i', 'e'));
+      b.appendChild(dots);
+      if (es.length) b.setAttribute('aria-label', key + ', ' + es.length + ' event' + (es.length > 1 ? 's' : ''));
+      b.onclick = (function (k) { return function () { calSel = k; renderCalendar(); }; })(key);
+      grid.appendChild(b);
+    }
+    var sd = new Date(calSel + 'T00:00');
+    $('cal-day-title').textContent = isNaN(sd) ? 'Events' : sd.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    var ul = $('cal-day-list'); ul.innerHTML = '';
+    var day = map[calSel] || [];
+    if (!day.length) ul.appendChild(el('li', 'muted empty', 'Nothing scheduled.'));
+    day.forEach(function (x) {
+      var o = x.o, li = el('li', 'card-item cal-item ' + x.kind);
+      var info = el('div', 'grow');
+      info.appendChild(el('strong', null, x.kind === 'game' ? 'Game' + (o.location ? ' · ' + o.location : '') : o.title));
+      if (o.time) info.appendChild(ei('small', null, 'calendar', fmt(o)));
+      var where = x.kind === 'game' ? o.field_address : (o.venue_name || o.venue_address);
+      if (where) info.appendChild(ei('small', null, 'pin', where));
+      li.appendChild(info);
+      li.onclick = function () { showTab(x.kind === 'game' ? 'practices' : 'events'); };
+      ul.appendChild(li);
+    });
+  }
+  $('cal-prev').onclick = function () { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); calSel = null; renderCalendar(); };
+  $('cal-next').onclick = function () { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); calSel = null; renderCalendar(); };
 
   // ---------- bring list (practices + events) ----------
   function bringList(owner) {
@@ -2458,7 +2528,7 @@
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderHelp(); renderPolls(); renderChat(); renderMembers(); renderAlbum();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderHelp(); renderPolls(); renderCalendar(); renderChat(); renderMembers(); renderAlbum();
   }
   renderTeamName();
   renderTeamPic();

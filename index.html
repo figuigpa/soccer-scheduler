@@ -192,20 +192,22 @@
   </section>
 
 </div>
-<div id="polls-pane" class="pane">
-  <section id="polls" class="tab">
-    <h2 class="page-title" data-ic="chart">Polls</h2>
-    <details class="card fold" id="poll-fold"><summary data-ic="plus">New poll</summary>
-    <form id="poll-form">
-      <label>Question <input type="text" id="poll-q" placeholder="Which day works for the party?" required></label>
-      <div id="poll-opts"></div>
-      <button type="button" class="cancel" id="poll-add-opt" data-ic="plus">Add option</button>
-      <button class="primary" type="submit">Create poll</button>
-    </form></details>
-    <h2>Polls</h2>
-    <ul id="poll-list" class="list"></ul>
+<div id="cal-pane" class="pane">
+  <section id="calendar" class="tab">
+    <h2 class="page-title" data-ic="calendar">Calendar</h2>
+    <div class="cal-card card">
+      <div class="cal-head">
+        <button type="button" id="cal-prev" aria-label="Previous month" data-ic="back"></button>
+        <b id="cal-title"></b>
+        <button type="button" id="cal-next" aria-label="Next month" data-ic="back"></button>
+      </div>
+      <div class="cal-dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+      <div id="cal-grid" class="cal-grid"></div>
+      <div class="cal-legend"><span class="cal-key g"></span>Game <span class="cal-key e"></span>Gathering</div>
+    </div>
+    <h2 id="cal-day-title">Events</h2>
+    <ul id="cal-day-list" class="list"></ul>
   </section>
-
 </div>
 <div id="album-pane" class="pane">
   <section id="album" class="tab">
@@ -261,13 +263,13 @@
   <button data-pane="soccer" class="active"><span class="ic" data-ic="ball"></span><span class="lb">Games</span></button>
   <button data-pane="gather"><span class="ic" data-ic="gift"></span><span class="lb">Gathering</span></button>
   <button data-pane="chat-pane"><span class="ic" data-ic="chat"><b id="chat-dot" class="dot" style="display:none">0</b></span><span class="lb">Chat</span></button>
-  <button data-pane="polls-pane"><span class="ic" data-ic="chart"></span><span class="lb">Polls</span></button>
+  <button data-pane="cal-pane"><span class="ic" data-ic="calendar"></span><span class="lb">Calendar</span></button>
   <button data-pane="album-pane"><span class="ic" data-ic="camera"></span><span class="lb">Photos</span></button>
 </nav>
 <div id="ptr" class="ptr" aria-hidden="true"><span class="ptr-i" data-ic="refresh"></span></div>
 <div id="viewer" class="viewer" hidden><button id="viewer-close" type="button" aria-label="Close" data-ic="x"></button><img id="viewer-img" alt=""><div id="viewer-cap" class="viewer-cap"></div><button id="viewer-del" type="button" class="viewer-del" hidden data-ic="trash">Delete</button></div>
 <div id="help-view" class="help-view" role="dialog" aria-modal="true" aria-label="Help requests" hidden>
-  <div class="help-head"><h2 class="page-title" data-ic="users">Help requests</h2><button id="help-close" type="button" aria-label="Close" data-ic="x"></button></div>
+  <div class="help-head"><h2 class="page-title" data-ic="users">Help requests</h2><button id="help-close" class="view-close" type="button" aria-label="Close" data-ic="x"></button></div>
   <div class="help-body">
     <details class="card fold" id="help-fold"><summary data-ic="plus">New help request</summary>
     <form id="help-form">
@@ -279,7 +281,28 @@
     <ul id="help-list" class="list"></ul>
   </div>
 </div>
-<button type="button" id="qa-fab" class="qa-fab" aria-label="New help request" data-ic="plus"></button>
+<div id="poll-view" class="help-view" role="dialog" aria-modal="true" aria-label="Polls" hidden>
+  <div class="help-head"><h2 class="page-title" data-ic="chart">Polls</h2><button id="poll-close" class="view-close" type="button" aria-label="Close" data-ic="x"></button></div>
+  <div class="help-body">
+    <details class="card fold" id="poll-fold"><summary data-ic="plus">New poll</summary>
+    <form id="poll-form">
+      <label>Question <input type="text" id="poll-q" placeholder="Which day works for the party?" required></label>
+      <div id="poll-opts"></div>
+      <button type="button" class="cancel" id="poll-add-opt" data-ic="plus">Add option</button>
+      <button class="primary" type="submit">Create poll</button>
+    </form></details>
+    <ul id="poll-list" class="list"></ul>
+  </div>
+</div>
+<button type="button" id="qa-fab" class="qa-fab" aria-label="Add" aria-haspopup="dialog" aria-expanded="false" data-ic="plus"></button>
+<div id="qa-sheet" class="qa-wrap" hidden>
+  <div class="qa-scrim" id="qa-scrim"></div>
+  <div class="qa-sheet" role="dialog" aria-modal="true" aria-label="Add">
+    <div class="qa-grab"></div>
+    <button type="button" data-qa="poll" data-ic="chart">New poll</button>
+    <button type="button" data-qa="help" data-ic="users">New help request</button>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

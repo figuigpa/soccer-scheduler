@@ -593,6 +593,7 @@ body.locked .gate{display:grid}
 
 /* quick-add FAB + bottom sheet */
 .qa-fab{position:fixed;right:18px;bottom:calc(var(--tabbar) + var(--sab) + 18px);z-index:35;width:58px;height:58px;border-radius:50%;border:0;padding:0;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(20,83,45,.38),0 1px 3px rgba(0,0,0,.15);cursor:pointer;transition:transform .25s,box-shadow .2s,opacity .2s}
+.qa-fab.open svg.i{transform:rotate(135deg)}
 .qa-fab svg.i{width:28px;height:28px;margin:0;transition:transform .28s cubic-bezier(.3,.9,.3,1)}
 .qa-fab:active{transform:scale(.93)}
 body.on-chat .qa-fab{display:none}
@@ -603,6 +604,40 @@ body.on-chat .qa-fab{display:none}
 .help-view[hidden]{display:none}
 .help-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:#fff;border-bottom:1px solid var(--line)}
 .help-head .page-title{margin:0}
-#help-close{width:44px;height:44px;border:0;border-radius:50%;background:#eef3ec;color:var(--dark);display:flex;align-items:center;justify-content:center;padding:0}
-#help-close svg.i{width:1.3em;height:1.3em}
+#help-close,.view-close{width:44px;height:44px;border:0;border-radius:50%;background:#eef3ec;color:var(--dark);display:flex;align-items:center;justify-content:center;padding:0}
+#help-close svg.i,.view-close svg.i{width:1.3em;height:1.3em}
 .help-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px 14px calc(24px + var(--sab));max-width:720px;width:100%;margin:0 auto;box-sizing:border-box}
+
+/* ---------- + menu sheet ---------- */
+.qa-wrap{position:fixed;inset:0;z-index:60;visibility:hidden;transition:visibility 0s .28s}
+.qa-wrap.show{visibility:visible;transition-delay:0s}
+.qa-scrim{position:absolute;inset:0;background:rgba(10,30,18,.45);opacity:0;transition:opacity .25s}
+.qa-wrap.show .qa-scrim{opacity:1}
+.qa-sheet{position:absolute;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:#fff;border-radius:22px 22px 0 0;padding:8px 14px calc(14px + var(--sab));box-shadow:0 -8px 30px rgba(10,40,20,.2);transform:translateY(100%);transition:transform .28s cubic-bezier(.3,.9,.3,1)}
+.qa-wrap.show .qa-sheet{transform:none}
+.qa-grab{width:38px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 10px}
+.qa-sheet button[data-qa]{display:flex;align-items:center;gap:14px;width:100%;min-height:54px;padding:10px 8px;background:none;border:0;border-radius:14px;font:inherit;font-weight:700;color:var(--ink);text-align:left;cursor:pointer}
+.qa-sheet button[data-qa]:active{background:#e5f1e7}
+.qa-sheet button[data-qa] svg.i{flex:none;width:38px;height:38px;padding:9px;margin:0;border-radius:12px;background:#e5f1e7;color:var(--green)}
+@media (prefers-reduced-motion:reduce){.qa-sheet,.qa-scrim{transition:none}}
+
+/* ---------- calendar ---------- */
+.cal-card{padding:12px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-head b{font-size:1.02rem;color:var(--dark)}
+.cal-head button{width:40px;height:40px;border:0;border-radius:50%;background:#eef3ec;color:var(--dark);display:flex;align-items:center;justify-content:center;padding:0}
+#cal-next svg.i{transform:scaleX(-1)}
+.cal-dow,.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow span{text-align:center;font-size:.72rem;font-weight:700;color:var(--sub);padding:4px 0}
+.cal-day{height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:0;border-radius:12px;color:var(--ink);font:inherit;font-size:.92rem;font-weight:600;padding:0;cursor:pointer}
+.cal-day.today .cal-n{color:var(--green);font-weight:800;text-decoration:underline}
+.cal-day.sel{background:var(--green);color:#fff}
+.cal-day.sel .cal-n{color:#fff}
+.cal-dots{display:flex;gap:3px;height:6px}
+.cal-dots i{width:6px;height:6px;border-radius:50%;background:var(--green2)}
+.cal-dots i.e,.cal-key.e{background:var(--yellow)}
+.cal-dots i.g,.cal-key.g{background:var(--green2)}
+.cal-day.sel .cal-dots i.g{background:#fff}
+.cal-legend{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:8px;font-size:.74rem;color:var(--sub)}
+.cal-key{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:8px}
+.cal-item{cursor:pointer}
