@@ -1515,6 +1515,97 @@
     bar.appendChild(t);
   }
   $('pin-bar').onclick = function () { jumpTo(pinnedId()); };
+  // ---------- link previews ----------
+  var URL_RE = /https?:\/\/[^\s<>"']+/gi, LP_KEY = 'rf.linkPrev', lpMem = null, lpPending = {};
+  function trimUrl(u) { return u.replace(/[.,;:!?)\]}]+$/, ''); }
+  function firstUrl(t) { var m = String(t || '').match(URL_RE); return m ? trimUrl(m[0]) : null; }
+  function linkifyBody(text) {
+    var sp = el('span', 'body'), last = 0, m;
+    text = String(text == null ? '' : text); URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(text))) {
+      var u = trimUrl(m[0]);
+      if (m.index > last) sp.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var a = el('a', 'lnk', u); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.onclick = function (e) { e.stopPropagation(); };
+      sp.appendChild(a);
+      last = m.index + u.length; URL_RE.lastIndex = last;
+    }
+    if (last < text.length) sp.appendChild(document.createTextNode(text.slice(last)));
+    return sp;
+  }
+  function lpCache() { if (!lpMem) { try { lpMem = JSON.parse(localStorage.getItem(LP_KEY) || '{}'); } catch (e) { lpMem = {}; } } return lpMem; }
+  function lpSave() {
+    var c = lpCache(), ks = Object.keys(c);
+    if (ks.length > 150) ks.sort(function (a, b) { return (c[a].t || 0) - (c[b].t || 0); }).slice(0, ks.length - 150).forEach(function (k) { delete c[k]; });
+    try { localStorage.setItem(LP_KEY, JSON.stringify(c)); } catch (e) {}
+  }
+  function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } }
+  function metaOf(doc, names) {
+    for (var i = 0; i < names.length; i++) {
+      var n = doc.querySelector('meta[property="' + names[i] + '"],meta[name="' + names[i] + '"]');
+      if (n && n.getAttribute('content')) return n.getAttribute('content').trim();
+    }
+    return '';
+  }
+  function abs(u, base) { try { return u ? new URL(u, base).href : ''; } catch (e) { return ''; } }
+  async function timed(url, ms) {
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, ms);
+    try { return await fetch(url, { signal: ctl.signal }); } finally { clearTimeout(t); }
+  }
+  async function fetchPreview(url) {
+    var out = { title: '', desc: '', image: '', site: '', t: Date.now() };
+    try { // microlink: CORS-enabled, handles Facebook/YouTube
+      var r = await timed('https://api.microlink.io/?url=' + encodeURIComponent(url), 8000);
+      var j = await r.json();
+      if (j && j.status === 'success' && j.data) {
+        out.title = j.data.title || ''; out.desc = j.data.description || '';
+        out.image = (j.data.image && j.data.image.url) || ''; out.site = j.data.publisher || '';
+      }
+    } catch (e) {}
+    if (!out.title && !out.image) { // direct fetch (works only where CORS allows)
+      try {
+        var r2 = await timed(url, 6000), html = await r2.text();
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        out.title = metaOf(doc, ['og:title', 'twitter:title']) || (doc.title || '').trim();
+        out.desc = metaOf(doc, ['og:description', 'twitter:description', 'description']);
+        out.image = abs(metaOf(doc, ['og:image', 'twitter:image']), url);
+        out.site = metaOf(doc, ['og:site_name']);
+      } catch (e) {}
+    }
+    return out;
+  }
+  function getPreview(url) {
+    var c = lpCache();
+    if (c[url]) return Promise.resolve(c[url]);
+    if (!lpPending[url]) lpPending[url] = fetchPreview(url).then(function (p) {
+      delete lpPending[url];
+      if (p.title || p.image) { c[url] = p; lpSave(); }
+      return p;
+    });
+    return lpPending[url];
+  }
+  function fillCard(a, url, p) {
+    a.innerHTML = '';
+    if (p.image) {
+      var im = el('img', 'lp-img'); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.src = p.image;
+      im.onerror = function () { im.remove(); a.classList.remove('has-pic'); };
+      a.appendChild(im); a.classList.add('has-pic');
+    }
+    var t = el('div', 'lp-txt');
+    t.appendChild(el('div', 'lp-title', p.title || hostOf(url)));
+    if (p.desc) t.appendChild(el('div', 'lp-desc', p.desc));
+    t.appendChild(el('div', 'lp-host', hostOf(url)));
+    a.appendChild(t);
+  }
+  function linkCard(url) {
+    var a = el('a', 'lp'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.onclick = function (e) { e.stopPropagation(); };
+    fillCard(a, url, { title: '', desc: url }); // simple fallback card until/unless metadata arrives
+    var c = lpCache()[url];
+    if (c) fillCard(a, url, c);
+    else getPreview(url).then(function (p) { if ((p.title || p.image) && a.isConnected !== false) fillCard(a, url, p); });
+    return a;
+  }
   function renderChat(forceBottom) {
     var box = $('chat-msgs');
     renderChatHead();
@@ -1551,7 +1642,12 @@
         b.appendChild(im);
         time.classList.add('over');
       } else if (media) { b.classList.add('has-voice'); b.appendChild(voiceBubble(media, m.sender, time)); time = null; }
-      else b.appendChild(el('span', 'body', rp ? rp.text : m.body));
+      else {
+        var txt = rp ? rp.text : m.body;
+        b.appendChild(linkifyBody(txt));
+        var lu = firstUrl(txt);
+        if (lu) b.appendChild(linkCard(lu));
+      }
       if (time) b.appendChild(time);
       bindGestures(row, b, m);
       row.appendChild(b);
