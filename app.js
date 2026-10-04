@@ -27,6 +27,93 @@
     return e;
   }
 
+  // ---------- modal dialogs (replace native alert / confirm / prompt) ----------
+  // showModal({title, message, input, buttons, actions, dismiss}) -> Promise
+  //  input:   true | {value, placeholder, maxLength}  -> resolves the text of a button with submit:true
+  //  buttons: [{label, value, style: 'primary'|'danger'|'cancel', submit}]
+  //  actions: [{label, icon, value, danger}]  -> bottom action sheet; a Cancel row is added
+  //  dismiss: value resolved on Esc / backdrop tap (default null)
+  function showModal(o) {
+    o = o || {};
+    return new Promise(function (resolve) {
+      var prev = document.activeElement;
+      var sheet = !!(o.actions && o.actions.length);
+      var ov = el('div', 'md-overlay' + (sheet ? ' md-sheet' : '') + (typeof chatActive === 'function' && chatActive() ? ' md-dark' : ''));
+      var box = el('div', 'md-box');
+      box.setAttribute('role', o.input || !o.actions ? 'dialog' : 'menu');
+      box.setAttribute('aria-modal', 'true');
+      if (o.title) box.appendChild(el('h3', 'md-title', o.title));
+      if (o.message) box.appendChild(el('p', 'md-msg', o.message));
+      var inp = null;
+      if (o.input) {
+        var cfg = o.input === true ? {} : o.input;
+        inp = el('input', 'md-input'); inp.type = 'text'; inp.value = cfg.value || '';
+        if (cfg.placeholder) inp.placeholder = cfg.placeholder;
+        inp.maxLength = cfg.maxLength || 60;
+        inp.autocomplete = 'off'; inp.setAttribute('autocapitalize', 'words');
+        box.appendChild(inp);
+      }
+      var done = false;
+      function close(v) {
+        if (done) return; done = true;
+        document.removeEventListener('keydown', onKey, true);
+        ov.classList.add('closing');
+        var gone = false;
+        function rm() { if (gone) return; gone = true; ov.remove(); }
+        ov.addEventListener('animationend', function (e) { if (e.target === ov) rm(); });
+        setTimeout(rm, 260);
+        try { if (prev && prev.focus && document.body.contains(prev)) prev.focus({ preventScroll: true }); } catch (e) {}
+        resolve(v);
+      }
+      var dismissVal = o.dismiss === undefined ? null : o.dismiss;
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(dismissVal); }
+        else if (e.key === 'Enter' && inp && e.target === inp) {
+          e.preventDefault(); var sb0 = (o.buttons || []).filter(function (b) { return b.submit; })[0];
+          if (sb0) close(inp.value);
+        }
+      }
+      document.addEventListener('keydown', onKey, true);
+      var row = el('div', sheet ? 'md-actions' : 'md-btns');
+      if (sheet) {
+        o.actions.forEach(function (a) {
+          var b = a.icon ? ei('button', 'md-btn' + (a.danger ? ' danger' : ''), a.icon, a.label) : el('button', 'md-btn' + (a.danger ? ' danger' : ''), a.label);
+          b.type = 'button'; b.onclick = function () { close(a.value); };
+          row.appendChild(b);
+        });
+        var cb = el('button', 'md-btn md-cancel', 'Cancel'); cb.type = 'button';
+        cb.onclick = function () { close(dismissVal); };
+        row.appendChild(cb);
+      } else {
+        (o.buttons || [{ label: 'OK', value: true, style: 'primary' }]).forEach(function (bd) {
+          var b = el('button', 'md-btn ' + (bd.style || ''), bd.label); b.type = 'button';
+          b.onclick = function () { close(bd.submit ? (inp ? inp.value : true) : bd.value); };
+          row.appendChild(b);
+        });
+      }
+      box.appendChild(row); ov.appendChild(box);
+      ov.addEventListener('mousedown', function (e) { if (e.target === ov) close(dismissVal); });
+      document.body.appendChild(ov);
+      var first = inp || row.querySelector('.md-btn.primary, .md-btn.danger') || row.querySelector('.md-btn');
+      setTimeout(function () { try { if (first) { first.focus({ preventScroll: true }); if (inp) inp.select(); } } catch (e) {} }, 30);
+    });
+  }
+  function uiAlert(message, title) {
+    return showModal({ title: title || '', message: message, buttons: [{ label: 'OK', value: true, style: 'primary' }], dismiss: true });
+  }
+  function uiConfirm(message, opt) {
+    opt = opt || {};
+    var bad = opt.danger !== undefined ? opt.danger : /^(Delete|Remove|Clear)\b/.test(message);
+    return showModal({ title: opt.title || '', message: message, dismiss: false, buttons: [
+      { label: 'Cancel', value: false, style: 'cancel' },
+      { label: opt.ok || (bad ? (/^Clear/.test(message) ? 'Clear' : /^Remove/.test(message) ? 'Remove' : 'Delete') : 'OK'), value: true, style: bad ? 'danger' : 'primary' }] });
+  }
+  function uiPrompt(message, value, opt) {
+    opt = opt || {};
+    return showModal({ title: opt.title || '', message: message, input: { value: value || '', placeholder: opt.placeholder, maxLength: opt.maxLength }, dismiss: null, buttons: [
+      { label: 'Cancel', value: null, style: 'cancel' }, { label: opt.ok || 'OK', style: 'primary', submit: true }] });
+  }
+
   // ---------- icons (inline SVG, Feather-style line icons) ----------
   var IC = {
       "ball": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"12 8 15.5 10.5 14.2 14.5 9.8 14.5 8.5 10.5\"/><path d=\"M12 8V2.3M15.5 10.5l5.3-1.8M14.2 14.5l3.3 4.5M9.8 14.5l-3.3 4.5M8.5 10.5L3.2 8.7\"/>",
@@ -89,8 +176,8 @@
   hydrateIcons();
   function nowIso() { return new Date().toISOString(); }
   function myName() { return localStorage.getItem(NAME_KEY) || ''; }
-  function askName(msg) {
-    var n = (prompt(msg, myName()) || '').trim();
+  async function askName(msg) {
+    var n = ((await uiPrompt(msg, myName(), { title: 'Your name', placeholder: 'Enter your name' })) || '').trim();
     if (n) localStorage.setItem(NAME_KEY, n);
     return n;
   }
@@ -200,8 +287,8 @@
     try { localStorage.setItem(TEAM_KEY, n); } catch (e) {}
     renderTeamName();
   }
-  function editTeamName() {
-    var n = prompt('Team name (shared with everyone):', teamName());
+  async function editTeamName() {
+    var n = await uiPrompt('Team name (shared with everyone):', teamName(), { title: 'Team name', maxLength: 40 });
     if (n == null) return;
     n = n.trim().slice(0, 40);
     if (!n || n === teamName()) return;
@@ -247,7 +334,7 @@
   }
   async function changeTeamPic(file) {
     if (!file) return;
-    if (!sb) { alert('Team picture needs a connection to the server.'); return; }
+    if (!sb) { uiAlert('Team picture needs a connection to the server.'); return; }
     try {
       var blob = await resizeImage(file);
       var path = 'team-' + Date.now() + '.jpg';
@@ -257,7 +344,7 @@
       setTeamPic(url);
       push({ t: 'team_settings', a: 'up', c: 'id', r: { id: 1, name: teamName(), picture_url: url } });
     } catch (e) {
-      alert('Could not upload picture: ' + (e && e.message ? e.message : e));
+      uiAlert('Could not upload picture: ' + (e && e.message ? e.message : e));
     }
   }
   function teamSettings() {
@@ -280,8 +367,8 @@
       mediaUsage().then(function (u) { sInfo.textContent = 'Storage: ' + fmtBytes(u.bytes) + ' of media on this device (' + u.n + ' file' + (u.n === 1 ? '' : 's') + ')'; b4.disabled = !u.n; })
         .catch(function () { sInfo.textContent = 'Storage: local media unavailable'; b4.disabled = true; });
     }
-    b4.onclick = function () {
-      if (!confirm('Clear cached photos and voice messages from this device? They will re-download when viewed.')) return;
+    b4.onclick = async function () {
+      if (!(await uiConfirm('Clear cached photos and voice messages from this device? They will re-download when viewed.', { title: 'Clear cached media?', ok: 'Clear' }))) return;
       mediaClear().then(showUsage).catch(function () { sInfo.textContent = 'Could not clear cache'; });
     };
     showUsage();
@@ -495,10 +582,10 @@
       info.appendChild(t);
       if (it.volunteer_name) info.appendChild(ei('small', null, 'check', it.volunteer_name + ' is bringing it'));
       var btn = el('button', 'vol' + (it.volunteer_name ? ' on' : ''), it.volunteer_name ? 'Withdraw' : "I'll bring it");
-      btn.onclick = function () {
+      btn.onclick = async function () {
         if (it.volunteer_name) it.volunteer_name = null;
         else {
-          var n = askName('Your name?');
+          var n = await askName('Your name?');
           if (!n) return;
           it.volunteer_name = n;
         }
@@ -545,7 +632,7 @@
     var old = editingPractice && state.practices.filter(function (x) { return x.id === editingPractice; })[0];
     var p = { id: old ? old.id : uid(), date: $('p-date').value, time: $('p-time').value, location: $('p-place').value.trim(),
       field_address: $('p-addr').value.trim(), field_map_url: $('p-map').value.trim(), notes: $('p-notes').value.trim(), created_at: old ? old.created_at : nowIso() };
-    if (p.field_map_url && !safeUrl(p.field_map_url)) { alert('Map link must start with http:// or https://'); return; }
+    if (p.field_map_url && !safeUrl(p.field_map_url)) { uiAlert('Map link must start with http:// or https://'); return; }
     if (old) { state.practices[state.practices.indexOf(old)] = p; }
     else { state.practices.push(p); if (!state.sel) state.sel = p.id; }
     push({ t: 'practices', a: 'up', r: practiceRow(p) });
@@ -578,8 +665,8 @@
     if (p.notes) info.appendChild(el('small', 'notes', p.notes));
     var del = ei('button', 'del', 'trash');
     del.setAttribute('aria-label', 'Delete game');
-    del.onclick = function () {
-      if (!confirm('Delete this game?')) return;
+    del.onclick = async function () {
+      if (!(await uiConfirm('Delete this game?'))) return;
       state.practices = state.practices.filter(function (x) { return x.id !== p.id; });
       state.items = state.items.filter(function (x) { return x.practice_id !== p.id; });
       delete state.avail[p.id]; delete state.teams[p.id];
@@ -640,8 +727,8 @@
       li.appendChild(tag);
       var del = ei('button', 'del', 'trash');
       del.setAttribute('aria-label', 'Remove ' + pl.name);
-      del.onclick = function () {
-        if (!confirm('Remove ' + pl.name + '?')) return;
+      del.onclick = async function () {
+        if (!(await uiConfirm('Remove ' + pl.name + '?'))) return;
         state.players = state.players.filter(function (x) { return x.id !== pl.id; });
         Object.keys(state.avail).forEach(function (k) { delete state.avail[k][pl.id]; });
         Object.keys(state.teams).forEach(function (k) { delete state.teams[k][pl.id]; });
@@ -1009,9 +1096,9 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('lineup').classList.contains('full')) setLuFull(false); });
   $('lu-move').onclick = function () { luMode = 'move'; renderLineup(); };
   $('lu-pen').onclick = function () { luMode = 'pen'; luSel = null; renderLineup(); };
-  $('lu-clear').onclick = function () {
+  $('lu-clear').onclick = async function () {
     var ids = Object.keys(state.lineup.pos);
-    if ((ids.length || state.lineup.strokes.length) && !confirm('Clear all players and drawings from the board?')) return;
+    if ((ids.length || state.lineup.strokes.length) && !(await uiConfirm('Clear all players and drawings from the board?'))) return;
     state.lineup = { pos: {}, strokes: [] }; luSel = null; save();
     if (ids.length) push({ t: 'lineup_positions', a: 'del', m: { player_id: ids } });
     renderLineup();
@@ -1058,7 +1145,7 @@
       venue_name: $('e-venue').value.trim(), venue_address: $('e-addr').value.trim(), venue_map_url: $('e-map').value.trim(),
       notes: $('e-notes').value.trim(), created_at: old ? old.created_at : nowIso() };
     if (!ev.title) return;
-    if (ev.venue_map_url && !safeUrl(ev.venue_map_url)) { alert('Map link must start with http:// or https://'); return; }
+    if (ev.venue_map_url && !safeUrl(ev.venue_map_url)) { uiAlert('Map link must start with http:// or https://'); return; }
     if (old) state.events[state.events.indexOf(old)] = ev; else state.events.push(ev);
     push({ t: 'events', a: 'up', r: eventRow(ev) });
     endEventEdit(); renderAll();
@@ -1137,8 +1224,8 @@
     if (ev.notes) info.appendChild(el('small', 'notes', ev.notes));
     var del = ei('button', 'del', 'trash');
     del.setAttribute('aria-label', 'Delete event');
-    del.onclick = function () {
-      if (!confirm('Delete this event?')) return;
+    del.onclick = async function () {
+      if (!(await uiConfirm('Delete this event?'))) return;
       state.events = state.events.filter(function (x) { return x.id !== ev.id; });
       state.items = state.items.filter(function (x) { return x.event_id !== ev.id; });
       state.assignments = state.assignments.filter(function (x) { return x.event_id !== ev.id; });
@@ -1178,8 +1265,8 @@
     return state.pollOpts.filter(function (o) { return o.poll_id === pid; })
       .sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
   }
-  function vote(poll, opt) {
-    var name = myName() || askName('Your name (used for votes and chat)');
+  async function vote(poll, opt) {
+    var name = myName() || await askName('Your name (used for votes and chat)');
     if (!name) return;
     var mine = state.pollVotes.filter(function (v) { return v.poll_id === poll.id && v.voter === name; })[0];
     if (mine && mine.option_id === opt.id) return;
@@ -1195,8 +1282,8 @@
     top.appendChild(el('strong', null, poll.question));
     var del = el('button', 'link danger', 'Delete');
     del.type = 'button';
-    del.onclick = function () {
-      if (!confirm('Delete this poll and all its votes?')) return;
+    del.onclick = async function () {
+      if (!(await uiConfirm('Delete this poll and all its votes?'))) return;
       state.polls = state.polls.filter(function (p) { return p.id !== poll.id; });
       state.pollOpts = state.pollOpts.filter(function (o) { return o.poll_id !== poll.id; });
       state.pollVotes = state.pollVotes.filter(function (v) { return v.poll_id !== poll.id; });
@@ -1247,7 +1334,7 @@
     var q = $('poll-q').value.trim();
     var texts = pollFields().map(function (i) { return i.value.trim(); }).filter(Boolean);
     if (!q) return;
-    if (texts.length < 2) { alert('A poll needs at least 2 options.'); return; }
+    if (texts.length < 2) { uiAlert('A poll needs at least 2 options.'); return; }
     var poll = { id: uid(), question: q, created_at: nowIso() };
     state.polls.push(poll);
     push({ t: 'polls', a: 'up', r: poll });
@@ -1320,25 +1407,14 @@
     if (u) { var im = el('img'); im.alt = ''; im.onerror = function () { av.textContent = ''; setIc(av, 'ball'); }; im.src = u; av.appendChild(im); }
     else setIc(av, 'ball');
   }
-  function actionSheet(m) {
-    var ov = el('div', 'tm-overlay'), box = el('div', 'tm-box wa-sheet');
-    var r = ei('button', 'tm-btn', 'reply', 'Reply'); r.type = 'button';
-    r.onclick = function () { ov.remove(); setReply(m); };
-    box.appendChild(r);
-    if (!parseMedia(m.body)) {
-      var cp = el('button', 'tm-btn', 'Copy'); cp.type = 'button';
-      cp.onclick = function () { ov.remove(); try { navigator.clipboard.writeText(plainBody(m.body)); } catch (e) {} };
-      box.appendChild(cp);
-    }
-    if (myName() && (m.sender === myName() || iAmAdmin())) {
-      var d = ei('button', 'tm-btn danger', 'trash', 'Delete'); d.type = 'button';
-      d.onclick = function () { ov.remove(); deleteChat(m); };
-      box.appendChild(d);
-    }
-    var c = el('button', 'tm-btn tm-cancel', 'Cancel'); c.type = 'button'; c.onclick = function () { ov.remove(); };
-    box.appendChild(c); ov.appendChild(box);
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
-    document.body.appendChild(ov);
+  async function actionSheet(m) {
+    var acts = [{ label: 'Reply', icon: 'reply', value: 'reply' }];
+    if (!parseMedia(m.body)) acts.push({ label: 'Copy', value: 'copy' });
+    if (myName() && (m.sender === myName() || iAmAdmin())) acts.push({ label: 'Delete', icon: 'trash', value: 'del', danger: true });
+    var v = await showModal({ actions: acts });
+    if (v === 'reply') setReply(m);
+    else if (v === 'copy') { try { navigator.clipboard.writeText(plainBody(m.body)); } catch (e) {} }
+    else if (v === 'del') deleteChat(m);
   }
   // long-press / right-click = action sheet; swipe right = reply
   function bindGestures(row, bub, m) {
@@ -1421,9 +1497,9 @@
     state.chat = state.chat.filter(function (x) { return x.id !== id; });
     if (state.chat.length !== n) { save(); renderChat(); }
   }
-  function deleteChat(m) {
+  async function deleteChat(m) {
     if (!myName() || (m.sender !== myName() && !iAmAdmin())) return;
-    if (!confirm('Delete ' + (m.sender === myName() ? 'this message' : m.sender + "'s message") + '?\n\n' + (parseMedia(m.body) ? '(media)' : plainBody(m.body).slice(0, 120)))) return;
+    if (!(await uiConfirm('Delete ' + (m.sender === myName() ? 'this message' : m.sender + "'s message") + '?\n\n' + (parseMedia(m.body) ? '(media)' : plainBody(m.body).slice(0, 120))))) return;
     removeChat(m.id);
     push({ t: 'chat_messages', a: 'del', m: { id: m.id } });
   }
@@ -1458,11 +1534,11 @@
     unread = 0;
     renderChat(true);
   }
-  $('chat-form').onsubmit = function (e) {
+  $('chat-form').onsubmit = async function (e) {
     e.preventDefault();
     var inp = $('chat-input'), body = inp.value.trim();
     if (!body) return;
-    var name = myName() || askName('Your name for chat');
+    var name = myName() || await askName('Your name for chat');
     if (!name) return;
     inp.value = ''; syncSendBtn();
     if (replyTo) body = '[re]' + encodeURIComponent(replyTo.id) + '|' + encodeURIComponent(replyTo.sender) + '|' + encodeURIComponent(snippetOf(replyTo.body)) + '\n' + body;
@@ -1472,8 +1548,8 @@
     push({ t: 'chat_messages', a: 'up', r: m });
     inp.focus();
   };
-  function sendMedia(body) {
-    var name = myName() || askName('Your name for chat');
+  async function sendMedia(body) {
+    var name = myName() || await askName('Your name for chat');
     if (!name) return;
     var m = { id: uid(), sender: name, body: body, created_at: nowIso() };
     addChat(m, false);
@@ -1617,8 +1693,8 @@
   }
   $('viewer-close').onclick = function () { $('viewer').hidden = true; };
   $('viewer').onclick = function (e) { if (e.target === $('viewer')) $('viewer').hidden = true; };
-  $('viewer-del').onclick = function () {
-    var ph = viewerPhoto; if (!ph || !confirm('Delete this photo?')) return;
+  $('viewer-del').onclick = async function () {
+    var ph = viewerPhoto; if (!ph || !(await uiConfirm('Delete this photo?'))) return;
     state.photos = state.photos.filter(function (x) { return x.id !== ph.id; });
     save(); push({ t: 'photos', a: 'del', m: { id: ph.id } });
     $('viewer').hidden = true; renderAlbum();
@@ -1647,9 +1723,9 @@
   }
   function albumById(id) { return albumList().filter(function (a) { return a.id === id; })[0]; }
   function countLabel(n) { return n + ' photo' + (n === 1 ? '' : 's'); }
-  function deleteAlbum(a) {
+  async function deleteAlbum(a) {
     var n = a.photos.length;
-    if (!confirm('Delete "' + a.name + '"' + (n ? ' and its ' + countLabel(n) : '') + '?')) return;
+    if (!(await uiConfirm('Delete "' + a.name + '"' + (n ? ' and its ' + countLabel(n) : '') + '?'))) return;
     if (n) {
       var gone = {}; a.photos.forEach(function (p) { gone[p.id] = 1; });
       state.photos = state.photos.filter(function (p) { return !gone[p.id]; });
@@ -1704,8 +1780,8 @@
   $('album-back').onclick = function () { curAlbum = null; renderAlbum(); };
 
   // sheet: create album / add photos to an album
-  function openAlbumSheet() {
-    if (!myName() && !askName('Your name')) return;
+  async function openAlbumSheet() {
+    if (!myName() && !(await askName('Your name'))) return;
     var old = $('albumSheet'); if (old) old.remove();
     var ov = el('div', 'tm-overlay'); ov.id = 'albumSheet';
     var box = el('div', 'tm-box ab-sheet');
@@ -1782,7 +1858,7 @@
   };
 
   // chat picture
-  function pickPhoto(inp) { return function () { if (!myName() && !askName('Your name for chat')) return; inp.click(); }; }
+  function pickPhoto(inp) { return async function () { if (!myName() && !(await askName('Your name for chat'))) return; inp.click(); }; }
   $('chat-attach').onclick = pickPhoto($('chat-file'));
   $('chat-photo').onclick = pickPhoto($('chat-cam'));
   async function sendPhotoFile() {
@@ -1793,7 +1869,7 @@
       await mediaPut(key, blob).catch(function () {});
       await b2Put(key, blob, 'image/jpeg');
       sendMedia('[img]' + key);
-    } catch (e) { alert('Could not send picture: ' + (e && e.message ? e.message : e)); }
+    } catch (e) { uiAlert('Could not send picture: ' + (e && e.message ? e.message : e)); }
     btn.disabled = false; setIc(btn, 'camera');
   }
   $('chat-file').onchange = sendPhotoFile;
@@ -1880,11 +1956,11 @@
   $('chat-mic').onclick = async function () {
     if (!rec && $('chat-input').value.trim()) { $('chat-form').requestSubmit ? $('chat-form').requestSubmit() : $('chat-form').dispatchEvent(new Event('submit', { cancelable: true })); return; }
     if (rec) { recStop(true); return; }
-    if (!myName() && !askName('Your name for chat')) return;
-    if (!navigator.mediaDevices || !window.MediaRecorder) { alert('Voice recording is not supported in this browser.'); return; }
+    if (!myName() && !(await askName('Your name for chat'))) return;
+    if (!navigator.mediaDevices || !window.MediaRecorder) { uiAlert('Voice recording is not supported in this browser.'); return; }
     var stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch (e) { alert('Microphone permission is needed to record.'); return; }
+    catch (e) { uiAlert('Microphone permission is needed to record.'); return; }
     var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].filter(function (t) { return MediaRecorder.isTypeSupported(t); })[0] || '';
     var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
     var type = (mr.mimeType || mime || 'audio/webm').split(';')[0], ext = /mp4/.test(type) ? 'mp4' : 'webm';
@@ -1901,7 +1977,7 @@
         await mediaPut(key, vblob).catch(function () {});
         await b2Put(key, vblob, type);
         sendMedia('[voice]' + key + '|' + Math.round(secs));
-      } catch (e) { alert('Could not send voice message: ' + (e && e.message ? e.message : e)); }
+      } catch (e) { uiAlert('Could not send voice message: ' + (e && e.message ? e.message : e)); }
       btn.disabled = false; btn.dataset.mode = ''; setIc(btn, 'mic'); syncSendBtn();
     };
     rec = r; mr.start();
@@ -1948,8 +2024,8 @@
       c.appendChild(el('p', 'muted', 'This group has no admin yet. The first person to claim becomes admin and can then appoint others.'));
       var cb = ei('button', 'primary', 'star', 'Claim admin');
       cb.type = 'button';
-      cb.onclick = function () {
-        var n = myName() || askName('Your name for chat');
+      cb.onclick = async function () {
+        var n = myName() || await askName('Your name for chat');
         if (n && !state.admins.length) setAdmin(n, true);
       };
       c.appendChild(cb); box.appendChild(c);
@@ -1966,8 +2042,8 @@
       if (amAdmin) {
         var b = el('button', 'link' + (adm ? ' danger' : ''), adm ? 'Remove admin' : 'Make admin');
         b.type = 'button';
-        b.onclick = function () {
-          if (adm && state.admins.length === 1 && !confirm('This is the last admin. Remove anyway? Then anyone can claim admin again.')) return;
+        b.onclick = async function () {
+          if (adm && state.admins.length === 1 && !(await uiConfirm('This is the last admin. Remove anyway? Then anyone can claim admin again.', { title: 'Last admin', ok: 'Remove anyway', danger: true }))) return;
           setAdmin(n, !adm);
         };
         li.appendChild(b);
@@ -1982,9 +2058,9 @@
   $('chat-more').onclick = function (e) { e.stopPropagation(); $('chat-menu').hidden = !$('chat-menu').hidden; };
   document.addEventListener('click', function () { $('chat-menu').hidden = true; });
   $('chat-back').onclick = function () { showTab(beforeChat); };
-  $('chat-video').onclick = function () { alert('Video calls are not available in this app.'); };
+  $('chat-video').onclick = function () { uiAlert('Video calls are not available in this app.'); };
   $('members-close').onclick = function () { $('members').hidden = true; };
-  $('chat-name').onclick = function () { $('chat-menu').hidden = true; if (askName('Your name for chat')) renderChat(); };
+  $('chat-name').onclick = async function () { $('chat-menu').hidden = true; if (await askName('Your name for chat')) renderChat(); };
 
   // ---------- render ----------
   function renderAll(fromSync) {

@@ -477,3 +477,38 @@ button:active,.list>li:active,.pchip:active{transition-duration:.08s}
 @media (prefers-reduced-motion:reduce){.shuffling .pchip,.pchip.settle{animation:none}}
 .list li .cat-tag{margin-left:auto;background:#eef1f5;color:var(--sub);border:0;border-radius:10px;padding:2px 9px;font-size:.7rem;font-weight:700;cursor:pointer;opacity:.85}
 .list li .cat-tag.kid{background:#e3f2ff;color:#1b5e8f}
+
+/* ---------- modal dialogs (showModal) ---------- */
+.md-overlay{position:fixed;inset:0;z-index:200;background:rgba(10,25,15,.45);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px;animation:md-fade .18s ease both}
+.md-overlay.md-sheet{align-items:flex-end;padding:12px calc(12px + env(safe-area-inset-right)) calc(12px + var(--sab,0px)) calc(12px + env(safe-area-inset-left))}
+.md-box{--md-bg:#fff;--md-fg:#16221a;--md-sub:#5a6b5f;--md-btn:#eef4ef;--md-line:#dde6db;--md-danger:#d62828;--md-ok:#1f7a43;
+background:var(--md-bg);color:var(--md-fg);border-radius:20px;width:100%;max-width:340px;padding:22px 18px 16px;box-shadow:0 2px 6px rgba(0,0,0,.12),0 18px 48px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px;animation:md-pop .24s cubic-bezier(.2,.9,.3,1.15) both}
+.md-sheet .md-box{max-width:420px;padding:10px;border-radius:18px;animation:md-up .28s cubic-bezier(.2,.8,.3,1) both}
+.md-dark .md-box{--md-bg:#233138;--md-fg:#e9edef;--md-sub:#8696a0;--md-btn:#2a3942;--md-line:#33444d;--md-danger:#f06f62;--md-ok:#25d366}
+.md-title{margin:0;font-size:1.1rem;font-weight:700;text-align:center}
+.md-msg{margin:0;font-size:.97rem;line-height:1.4;color:var(--md-sub);text-align:center;white-space:pre-line;word-break:break-word}
+.md-title+.md-msg{margin-top:-4px}
+.md-input{width:100%;box-sizing:border-box;border:1.5px solid var(--md-line);background:transparent;color:var(--md-fg);border-radius:12px;padding:12px 14px;font-size:1rem;outline:0;transition:border-color .15s,box-shadow .15s}
+.md-input:focus{border-color:var(--md-ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--md-ok) 25%,transparent)}
+.md-btns{display:flex;gap:8px;margin-top:6px}
+.md-actions{display:flex;flex-direction:column;gap:8px}
+.md-btn{flex:1;border:0;border-radius:12px;padding:13px 14px;font-size:1rem;font-weight:600;background:var(--md-btn);color:var(--md-fg);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .1s,filter .15s}
+.md-btn:active{transform:scale(.97)}
+.md-btn:focus-visible{outline:2px solid var(--md-ok);outline-offset:2px}
+.md-btn.primary{background:var(--md-ok);color:#fff}
+.md-btn.danger{color:var(--md-danger)}
+.md-btns .md-btn.danger{background:var(--md-danger);color:#fff}
+.md-btn.cancel,.md-btn.md-cancel{color:var(--md-sub);font-weight:500}
+.md-actions .md-btn{justify-content:flex-start}
+.md-actions .md-cancel{justify-content:center}
+.md-btn svg.i{width:1.1em;height:1.1em}
+.md-overlay.closing{animation:md-fadeout .18s ease both;pointer-events:none}
+.md-overlay.closing .md-box{animation:md-out .18s ease both}
+.md-overlay.closing.md-sheet .md-box{animation:md-down .2s ease both}
+@keyframes md-fade{from{opacity:0}to{opacity:1}}
+@keyframes md-fadeout{to{opacity:0}}
+@keyframes md-pop{from{opacity:0;transform:scale(.88) translateY(8px)}to{opacity:1;transform:none}}
+@keyframes md-out{to{opacity:0;transform:scale(.94)}}
+@keyframes md-up{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@keyframes md-down{to{opacity:0;transform:translateY(40px)}}
+@media (prefers-reduced-motion:reduce){.md-overlay,.md-box{animation-duration:.01s!important}}
