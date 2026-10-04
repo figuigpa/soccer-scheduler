@@ -167,13 +167,16 @@
 </div>
 <div id="album-pane" class="pane">
   <section id="album" class="tab">
-    <h2 class="page-title" data-ic="camera">Photos</h2>
-    <div class="card">
-      <input type="file" id="album-file" accept="image/*" multiple hidden>
-      <button class="primary" type="button" id="album-add" data-ic="plus">Add photos</button>
-      <p class="muted" id="album-status"></p>
+    <input type="file" id="album-file" accept="image/*" multiple hidden>
+    <div id="album-list-head"><h2 class="page-title" data-ic="camera">Photos</h2></div>
+    <div id="album-detail-head" class="ab-head" hidden>
+      <button type="button" id="album-back" class="ab-back" aria-label="Back to albums" data-ic="back"></button>
+      <div class="ab-ht"><b id="album-title"></b><small id="album-count"></small></div>
+      <button type="button" id="album-add2" class="ab-add2" data-ic="plus">Add</button>
     </div>
-    <div id="album-grid" class="album-grid"></div>
+    <p class="muted" id="album-status"></p>
+    <div id="album-grid" class="album-cards"></div>
+    <button type="button" id="album-add" class="fab" aria-label="Add photos or create album" data-ic="plus"></button>
   </section>
 </div>
 <div id="chat-pane" class="pane">

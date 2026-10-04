@@ -150,3 +150,17 @@ drop policy if exists "open" on photos;
 create policy "open" on photos for all using (true) with check (true);
 alter publication supabase_realtime add table photos;
 -- Chat images/voice are stored in chat_messages.body as "[img]<key>" / "[voice]<key>|<seconds>": no ALTER TABLE needed.
+
+-- Photo albums (event-based). Photos with NULL album_id show in an "Unsorted" album.
+create table if not exists albums (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  event_date date,
+  game_id uuid references practices(id) on delete set null,
+  created_at timestamptz default now()
+);
+alter table photos add column if not exists album_id uuid references albums(id) on delete set null;
+alter table albums enable row level security;
+drop policy if exists "open" on albums;
+create policy "open" on albums for all using (true) with check (true);
+alter publication supabase_realtime add table albums;

@@ -116,7 +116,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], polls: [], pollOpts: [], pollVotes: [], admins: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], admins: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -283,7 +283,16 @@
     ov.appendChild(box); document.body.appendChild(ov);
   }
   function push(op) { state.outbox.push(op); save(); flush(); }
-  function exec(op) {
+  async function exec(op) {
+    var res = await exec0(op);
+    // photos.album_id not migrated yet: store the photo unsorted rather than losing it
+    if (res.error && op.t === 'photos' && op.r && 'album_id' in op.r && /album_id/.test(res.error.message || '')) {
+      var r2 = Object.assign({}, op.r); delete r2.album_id;
+      return exec0({ t: op.t, a: op.a, c: op.c, r: r2 });
+    }
+    return res;
+  }
+  function exec0(op) {
     var q = sb.from(op.t);
     if (op.a === 'up') return q.upsert(op.r, op.c ? { onConflict: op.c } : undefined);
     q = q.delete();
@@ -330,6 +339,7 @@
       }
     }
     var photosRes = await sb.from('photos').select('*');
+    var albumsRes = await sb.from('albums').select('*');
     var ad = await sb.from('chat_admins').select('*');
     var adminsOk = !ad.error;
     var ts = await sb.from('team_settings').select('*').eq('id', 1);
@@ -351,6 +361,7 @@
     state.assignments = d[5].sort(byCreated);
     state.chat = d[6].sort(byCreated).map(chatRow);
     if (!photosRes.error) state.photos = (photosRes.data || []).sort(byCreated);
+    if (!albumsRes.error) state.albums = (albumsRes.data || []).sort(byCreated);
     if (pollsOk) {
       state.polls = pres[0].data.sort(byCreated);
       state.pollOpts = pres[1].data.sort(function (x, y) { return (x.position || 0) - (y.position || 0); });
@@ -375,6 +386,19 @@
       addChat(chatRow(p.new), true);
     }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, function (p) {
       if (p.old && p.old.id) removeChat(p.old.id);
+    }).subscribe();
+    sb.channel('albums-live').on('postgres_changes', { event: '*', schema: 'public', table: 'albums' }, function (p) {
+      var r = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!r || !r.id) return;
+      state.albums = state.albums.filter(function (a) { return a.id !== r.id; });
+      if (p.eventType !== 'DELETE') state.albums.push(r);
+      save(); renderAlbum();
+    }).on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, function (p) {
+      var r = p.eventType === 'DELETE' ? p.old : p.new;
+      if (!r || !r.id) return;
+      state.photos = state.photos.filter(function (x) { return x.id !== r.id; });
+      if (p.eventType !== 'DELETE') state.photos.push(r);
+      save(); renderAlbum();
     }).subscribe();
     sb.channel('admins-live').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_admins' }, function (p) {
       var r = p.eventType === 'DELETE' ? p.old : p.new;
@@ -1424,34 +1448,161 @@
     $('viewer').hidden = true; renderAlbum();
   };
 
-  // album
+  // ---------- albums (event-based) ----------
+  var UNSORTED = '__unsorted', curAlbum = null, pendingUpload = null;
+  function todayIso() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function shortDate(iso) {
+    var d = new Date((iso || '') + 'T00:00'); if (isNaN(d)) return iso || '';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function photoSort(a, b) { return (a.created_at || '') < (b.created_at || '') ? 1 : -1; } // newest first
+  function albumPhotos(id) {
+    var ids = {}; state.albums.forEach(function (a) { ids[a.id] = 1; });
+    return state.photos.filter(function (p) { return id === UNSORTED ? !(p.album_id && ids[p.album_id]) : p.album_id === id; }).sort(photoSort);
+  }
+  function albumList() {
+    var l = state.albums.slice().sort(function (a, b) {
+      var ka = (a.event_date || (a.created_at || '').slice(0, 10)) + (a.created_at || ''), kb = (b.event_date || (b.created_at || '').slice(0, 10)) + (b.created_at || '');
+      return ka < kb ? 1 : -1;
+    }).map(function (a) { return { id: a.id, name: a.name, photos: albumPhotos(a.id), real: true }; });
+    var un = albumPhotos(UNSORTED);
+    if (un.length) l.push({ id: UNSORTED, name: 'Unsorted', photos: un, real: false });
+    return l;
+  }
+  function albumById(id) { return albumList().filter(function (a) { return a.id === id; })[0]; }
+  function countLabel(n) { return n + ' photo' + (n === 1 ? '' : 's'); }
+  function deleteAlbum(a) {
+    var n = a.photos.length;
+    if (!confirm('Delete "' + a.name + '"' + (n ? ' and its ' + countLabel(n) : '') + '?')) return;
+    if (n) {
+      var gone = {}; a.photos.forEach(function (p) { gone[p.id] = 1; });
+      state.photos = state.photos.filter(function (p) { return !gone[p.id]; });
+      push({ t: 'photos', a: 'del', m: { id: Object.keys(gone) } });
+    }
+    state.albums = state.albums.filter(function (x) { return x.id !== a.id; });
+    push({ t: 'albums', a: 'del', m: { id: a.id } });
+    if (curAlbum === a.id) curAlbum = null;
+    renderAlbum();
+  }
   function renderAlbum() {
     var g = $('album-grid'); if (!g) return;
-    g.innerHTML = '';
-    if (!state.photos.length) { g.appendChild(el('p', 'muted', 'No photos yet.')); return; }
-    state.photos.slice().reverse().forEach(function (ph) {
-      var b = el('button', 'ph'); b.type = 'button'; b.setAttribute('aria-label', 'Photo by ' + ph.uploader);
-      loadInto(ph.thumb_url || ph.url, b);
-      b.onclick = function () { openViewer(ph.url, ph.uploader + (ph.caption ? ' · ' + ph.caption : ''), ph); };
-      g.appendChild(b);
+    var cur = curAlbum && albumById(curAlbum);
+    if (curAlbum && !cur) curAlbum = null;
+    $('album-list-head').hidden = !!cur; $('album-detail-head').hidden = !cur;
+    g.innerHTML = ''; g.className = cur ? 'album-grid' : 'album-cards';
+    if (cur) {
+      $('album-title').textContent = cur.name; $('album-count').textContent = countLabel(cur.photos.length);
+      if (!cur.photos.length) g.appendChild(el('p', 'muted', 'No photos in this album yet. Tap + to add some.'));
+      cur.photos.forEach(function (ph) {
+        var b = el('button', 'ph'); b.type = 'button'; b.setAttribute('aria-label', 'Photo by ' + ph.uploader);
+        loadInto(ph.thumb_url || ph.url, b);
+        b.onclick = function () { openViewer(ph.url, ph.uploader + (ph.caption ? ' · ' + ph.caption : ''), ph); };
+        g.appendChild(b);
+      });
+      return;
+    }
+    var list = albumList();
+    if (!list.length) { g.appendChild(el('p', 'muted ab-empty', 'No albums yet. Tap + to create one.')); return; }
+    list.forEach(function (a) {
+      var card = el('div', 'ab-card'); card.tabIndex = 0; card.setAttribute('role', 'button'); card.setAttribute('aria-label', a.name + ', ' + countLabel(a.photos.length));
+      var stack = el('div', 'ab-stack');
+      var shown = a.photos.slice(0, 3);
+      if (!shown.length) { var em = ei('div', 'ab-ph ab-ph0 ab-blank', 'camera'); stack.appendChild(em); }
+      for (var i = shown.length - 1; i >= 0; i--) {
+        var t = el('div', 'ab-ph ab-ph' + i); loadInto(shown[i].thumb_url || shown[i].url, t); stack.appendChild(t);
+      }
+      if (a.real) {
+        var d = ei('button', 'ab-del', 'trash'); d.type = 'button'; d.setAttribute('aria-label', 'Delete album ' + a.name);
+        d.onclick = function (e) { e.stopPropagation(); deleteAlbum(a); };
+        stack.appendChild(d);
+      }
+      card.appendChild(stack);
+      card.appendChild(el('div', 'ab-name', a.name));
+      card.appendChild(el('div', 'ab-n', countLabel(a.photos.length)));
+      function open() { curAlbum = a.id; renderAlbum(); window.scrollTo(0, 0); }
+      card.onclick = open;
+      card.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+      g.appendChild(card);
     });
   }
-  $('album-add').onclick = function () { if (!myName() && !askName('Your name')) return; $('album-file').click(); };
+  $('album-back').onclick = function () { curAlbum = null; renderAlbum(); };
+
+  // sheet: create album / add photos to an album
+  function openAlbumSheet() {
+    if (!myName() && !askName('Your name')) return;
+    var old = $('albumSheet'); if (old) old.remove();
+    var ov = el('div', 'tm-overlay'); ov.id = 'albumSheet';
+    var box = el('div', 'tm-box ab-sheet');
+    box.appendChild(el('h3', null, 'Photos'));
+    var lbl1 = el('label', null, 'Album'), sel = el('select');
+    sel.appendChild(new Option('New album', 'new'));
+    albumList().forEach(function (a) { sel.appendChild(new Option(a.name + ' (' + a.photos.length + ')', a.id)); });
+    if (!albumById(UNSORTED)) sel.appendChild(new Option('Unsorted', UNSORTED));
+    sel.value = curAlbum && albumById(curAlbum) ? curAlbum : 'new';
+    var nw = el('div', 'ab-new');
+    var lbl2 = el('label', null, 'Pick a game or event'), gsel = el('select');
+    gsel.appendChild(new Option('None (custom album)', ''));
+    var gg = el('optgroup'); gg.label = 'Games';
+    state.practices.slice().sort(bySort).reverse().forEach(function (p) { gg.appendChild(new Option((p.location || 'Game') + ' · ' + shortDate(p.date), 'p:' + p.id)); });
+    var eg = el('optgroup'); eg.label = 'Events';
+    state.events.slice().sort(bySort).reverse().forEach(function (v) { eg.appendChild(new Option(v.title + (v.date ? ' · ' + shortDate(v.date) : ''), 'e:' + v.id)); });
+    if (gg.children.length) gsel.appendChild(gg);
+    if (eg.children.length) gsel.appendChild(eg);
+    var lbl3 = el('label', null, 'Album name'), nm = el('input'); nm.type = 'text'; nm.maxLength = 60; nm.value = shortDate(todayIso()); nm.placeholder = 'e.g. Vs FC Fusion Aug 16';
+    var lbl4 = el('label', null, 'Date (optional)'), dt = el('input'); dt.type = 'date'; dt.value = todayIso();
+    var gameId = null;
+    gsel.onchange = function () {
+      var v = gsel.value; gameId = null;
+      if (!v) return;
+      var rec = v[0] === 'p' ? state.practices.filter(function (x) { return x.id === v.slice(2); })[0] : state.events.filter(function (x) { return x.id === v.slice(2); })[0];
+      if (!rec) return;
+      if (v[0] === 'p') gameId = rec.id;
+      dt.value = rec.date || todayIso();
+      nm.value = (v[0] === 'p' ? (rec.location || 'Game') : rec.title) + ' ' + shortDate(dt.value);
+    };
+    [lbl2, gsel, lbl3, nm, lbl4, dt].forEach(function (n) { nw.appendChild(n); });
+    var go = ei('button', 'tm-btn ab-go', 'camera', 'Choose photos'), empty = el('button', 'tm-btn', 'Create empty album'), cancel = el('button', 'tm-btn tm-cancel', 'Cancel');
+    go.type = empty.type = cancel.type = 'button';
+    function sync() { nw.hidden = empty.hidden = sel.value !== 'new'; }
+    sel.onchange = sync; sync();
+    function buildNew() {
+      var d = dt.value || null;
+      return { id: uid(), name: nm.value.trim() || (d ? shortDate(d) : shortDate(todayIso())), event_date: d, game_id: gameId, created_at: nowIso() };
+    }
+    go.onclick = function () {
+      pendingUpload = sel.value === 'new' ? { album: buildNew() } : { albumId: sel.value };
+      ov.remove(); $('album-file').click();
+    };
+    empty.onclick = function () {
+      var a = buildNew(); state.albums.push(a); save(); push({ t: 'albums', a: 'up', r: a });
+      curAlbum = a.id; ov.remove(); renderAlbum();
+    };
+    cancel.onclick = function () { ov.remove(); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    [lbl1, sel, nw, go, empty, cancel].forEach(function (n) { box.appendChild(n); });
+    ov.appendChild(box); document.body.appendChild(ov);
+  }
+  $('album-add').onclick = openAlbumSheet;
+  $('album-add2').onclick = openAlbumSheet;
   $('album-file').onchange = async function () {
     var files = Array.prototype.slice.call(this.files || []); this.value = '';
-    var st = $('album-status'), name = myName(), ok = 0;
+    var tgt = pendingUpload; pendingUpload = null;
+    if (!files.length || !tgt) return;
+    var st = $('album-status'), name = myName(), ok = 0, aid = tgt.albumId === UNSORTED ? null : (tgt.albumId || null);
+    if (tgt.album) { state.albums.push(tgt.album); save(); push({ t: 'albums', a: 'up', r: tgt.album }); aid = tgt.album.id; }
+    curAlbum = aid || UNSORTED; renderAlbum();
     for (var i = 0; i < files.length; i++) {
       st.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
       try {
         var blob = await compress(files[i], 1600, 0.85), key = 'album/' + Date.now() + '-' + rnd() + '.jpg';
         await mediaPut(key, blob).catch(function () {});
         await b2Put(key, blob, 'image/jpeg');
-        var ph = { id: uid(), url: key, thumb_url: key, uploader: name, caption: '', created_at: nowIso() };
+        var ph = { id: uid(), url: key, thumb_url: key, uploader: name, caption: '', album_id: aid, created_at: nowIso() };
         state.photos.push(ph); save(); push({ t: 'photos', a: 'up', r: ph }); ok++;
         renderAlbum();
       } catch (e) { st.textContent = 'Upload failed: ' + (e && e.message ? e.message : e); return; }
     }
-    st.textContent = ok ? 'Added ' + ok + ' photo' + (ok > 1 ? 's' : '') + '.' : '';
+    st.textContent = ok ? 'Added ' + countLabel(ok) + '.' : '';
   };
 
   // chat picture
