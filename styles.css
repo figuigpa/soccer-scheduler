@@ -131,14 +131,18 @@ button:active{transform:scale(.96)}
 .hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:70%;text-align:center;background:#0b2e1ae6;color:#fff;font-weight:600;padding:14px;border-radius:30px;pointer-events:none}
 .pl{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;cursor:grab;z-index:2}
 .field.pen .pl{pointer-events:none}
-.jersey{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;border-radius:50%;background:var(--red);color:#fff;border:3px solid #fff;font-weight:800;font-size:.85rem;box-shadow:0 2px 4px #0005}
+.jersey{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;border-radius:50%;background:#8a8f8c;color:#fff;border:3px solid #fff;font-weight:800;font-size:.85rem;box-shadow:0 2px 4px #0005}
 .nm{font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;margin-top:1px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pl.sel .jersey{background:var(--yellow);color:#000;outline:3px solid #fff}
+.pl .jersey{background:#8a8f8c}
+.pl.t-red .jersey{background:var(--red)}
+.pl.t-yellow .jersey{background:var(--yellow);color:#3a2a00}
+.pl.sel .jersey{outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 0 6px #0b2e1a99}
 .rm{position:absolute;top:-14px;right:-18px;width:30px;height:30px;border-radius:50%;border:2px solid #fff;background:#222;color:#fff;font-size:1.1rem;line-height:1;padding:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 20px}
 .lchip{display:flex;align-items:center;gap:6px;min-height:48px;padding:4px 14px 4px 6px;border-radius:26px;border:1.5px solid var(--line);background:#fff;font-weight:700;box-shadow:0 1px 2px rgba(10,40,20,.06)}
 .lchip .jersey{background:#999;min-width:34px;height:34px;border-width:2px}
-.lchip.on .jersey{background:var(--red)}
+.lchip.t-red .jersey{background:var(--red)}
+.lchip.t-yellow .jersey{background:var(--yellow);color:#3a2a00}
 .lchip.sel{border-color:var(--green);background:#e5f1e7}
 /* chat: fills the space between header and tab bar */
 #chat{flex:1;min-height:0;width:100%;max-width:680px;margin:0 auto}

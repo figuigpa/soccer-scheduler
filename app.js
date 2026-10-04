@@ -748,6 +748,10 @@
     $('lu-draw').appendChild(pl);
     return pl;
   }
+  function teamCls(p, pl) {
+    var t = p && teamOf(p.id, pl.id);
+    return t === 'red' ? 't-red' : t === 'yellow' ? 't-yellow' : 't-none';
+  }
   function renderLineup() {
     var p = fillSelect($('lineup-practice'));
     var f = $('field'), lp = $('lu-players'), L = state.lineup;
@@ -758,7 +762,7 @@
     var pool = lineupPool(), on = onField();
     on.forEach(function (pl) {
       var pos = L.pos[pl.id];
-      var d = el('div', 'pl' + (luSel === pl.id ? ' sel' : ''));
+      var d = el('div', 'pl ' + teamCls(p, pl) + (luSel === pl.id ? ' sel' : ''));
       d.dataset.id = pl.id;
       d.style.left = pos.x + '%'; d.style.top = pos.y + '%';
       d.appendChild(el('span', 'jersey', initials(pl.name)));
@@ -786,7 +790,7 @@
     else if (!state.players.length) ro.appendChild(el('p', 'muted', 'Add players in the Players tab first.'));
     else if (!pool.length) ro.appendChild(el('p', 'muted', 'No players marked Available for this game. Set them in the Availability tab.'));
     pool.forEach(function (pl) {
-      var c = el('button', 'lchip' + (L.pos[pl.id] ? ' on' : '') + (luSel === pl.id ? ' sel' : ''));
+      var c = el('button', 'lchip ' + teamCls(p, pl) + (L.pos[pl.id] ? ' on' : '') + (luSel === pl.id ? ' sel' : ''));
       c.appendChild(el('span', 'jersey', initials(pl.name)));
       c.appendChild(el('span', null, pl.name));
       c.onclick = function () { luSel = luSel === pl.id ? null : pl.id; renderLineup(); };
