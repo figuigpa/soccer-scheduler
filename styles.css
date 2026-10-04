@@ -541,13 +541,13 @@ body.locked .gate{display:grid}
 .gate-team{margin:0;font-size:2.1rem;line-height:1.1;letter-spacing:.5px;font-weight:800}
 .gate-team .pa{color:var(--yellow)}
 .gate-sub{margin:10px 0 26px;color:rgba(255,255,255,.78);font-size:.98rem}
-.pin-boxes{display:flex;justify-content:center;gap:12px}
-.pin-boxes input{width:56px;height:68px;border-radius:16px;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:1.9rem;font-weight:700;text-align:center;
-  padding:0;caret-color:var(--yellow);outline:none;transition:border-color .15s,background .15s,transform .15s;-webkit-appearance:none;appearance:none}
-.pin-boxes input:focus{border-color:var(--yellow);background:rgba(255,255,255,.18);transform:translateY(-2px)}
+.pin-boxes{position:relative;display:flex;justify-content:center;gap:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pin-box{width:56px;height:68px;border-radius:16px;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:1.9rem;font-weight:700;display:grid;place-items:center;transition:border-color .15s,background .15s,transform .15s}
+.pin-box.active{border-color:var(--yellow);background:rgba(255,255,255,.18);transform:translateY(-2px)}
+.pin-hidden{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;margin:0;background:transparent;color:transparent;caret-color:transparent;font-size:16px;z-index:1}
 .pin-boxes.bad{animation:gShake .45s}
-.pin-boxes.bad input{border-color:#ff8a8a;background:rgba(214,40,40,.25)}
-.pin-boxes.ok input{border-color:#7dffa0;background:rgba(80,220,120,.3)}
+.pin-boxes.bad .pin-box{border-color:#ff8a8a;background:rgba(214,40,40,.25)}
+.pin-boxes.ok .pin-box{border-color:#7dffa0;background:rgba(80,220,120,.3)}
 @keyframes gShake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 .gate-err{min-height:1.4em;margin:14px 0 6px;color:#ffb4b4;font-size:.92rem;font-weight:600}
 .gate-btn{width:100%;margin-top:6px;padding:15px;border:0;border-radius:14px;background:var(--yellow);color:#2b2100;font-size:1.05rem;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .12s,opacity .12s}
