@@ -528,7 +528,7 @@
     if (!ts.error && ts.data && ts.data[0] && !state.outbox.length) { setTeamName(ts.data[0].name); if (ts.data[0].picture_url) setTeamPic(ts.data[0].picture_url); setPinnedId(ts.data[0].pinned_message_id); }
     if (state.outbox.length) return; // local edits made mid-pull win; next flush re-pulls
     var d = res.map(function (r) { return r.data || []; });
-    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult', pin: r.pin || '', picture_url: r.picture_url || '' }; });
+    state.players = d[0].sort(byCreated).map(function (r) { return { id: r.id, name: r.name, category: r.category === 'kid' ? 'kid' : 'adult', pin: r.pin || '', picture_url: r.picture_url || '', last_login: r.last_login || '' }; });
     state.practices = d[1].map(function (r) {
       return { id: r.id, date: r.date, time: (r.time || '').slice(0, 5), location: r.location || '', field_address: r.field_address || '',
         field_map_url: r.field_map_url || '', notes: r.notes || '', created_at: r.created_at };
@@ -1000,6 +1000,7 @@
     var r = { id: p.id, name: p.name, category: p.category, created_at: nowIso() };
     if (p.pin) r.pin = p.pin;
     if (p.picture_url) r.picture_url = p.picture_url;
+    if (p.last_login) r.last_login = p.last_login;
     return r;
   }
   $('player-form').onsubmit = function (e) {
@@ -2791,7 +2792,7 @@
         : 'Admins (star) can delete any message or poll and appoint other admins.'));
     }
     var loginPlayers = state.players.filter(function (p) { return p.category !== 'kid'; });
-    var notIn = loginPlayers.filter(function (p) { return !p.pin; });
+    var notIn = loginPlayers.filter(function (p) { return !p.last_login; });
     if (amAdmin && loginPlayers.length) {
       var done = loginPlayers.length - notIn.length;
       var st = el('div', 'login-stat');
@@ -2863,6 +2864,9 @@
     if (lsSet(PIN_KEY, p.pin) && lsGet(PIN_KEY) === p.pin) console.log('[gate] PIN saved for this device');
     else console.warn('[gate] PIN could not be saved; you will be asked again after a refresh');
     lsSet(NAME_KEY, p.name);
+    p.last_login = nowIso();
+    save();
+    push({ t: 'players', a: 'up', r: playerRow(p) });
     document.body.classList.remove('locked');
     renderAll();
   }

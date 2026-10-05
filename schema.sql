@@ -214,3 +214,6 @@ alter publication supabase_realtime add table announcements;
 
 -- Player profile pictures (B2 object key under avatars/); table already has the open RLS policy
 alter table players add column if not exists picture_url text;
+
+-- Real login tracking (set when a member unlocks the app with their PIN)
+alter table players add column if not exists last_login timestamptz;
