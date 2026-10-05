@@ -1805,6 +1805,11 @@
     return !!k && state.admins.some(function (n) { return n.toLowerCase() === k; });
   }
   function iAmAdmin() { return isAdmin(myName()); }
+  // The first admin (the founder who claimed it) is the super admin and cannot be removed.
+  function isSuperAdmin(name) {
+    var k = (name || '').trim().toLowerCase();
+    return !!k && !!state.admins.length && state.admins[0].toLowerCase() === k;
+  }
   // With no admins yet nobody can enforce anything, so polls stay deletable by everyone until the first claim.
   function canDeletePoll() { return !state.admins.length || iAmAdmin(); }
 
@@ -2798,15 +2803,17 @@
     }
     var ul = el('ul', 'member-list');
     memberNames().forEach(function (n) {
-      var adm = isAdmin(n);
+      var adm = isAdmin(n), sup = isSuperAdmin(n);
       var li = el('li', 'member' + (adm ? ' is-admin' : ''));
       li.appendChild(avatarEl('pav', playerByName(n), n));
-      li.appendChild(el('span', 'mname', n + (me && n.toLowerCase() === me.toLowerCase() ? ' (you)' : '')));
-      if (adm) li.appendChild(ei('span', 'admin-badge', 'star', 'Admin'));
+      li.appendChild(el('span', 'mname', n + (me && n.toLowerCase() === me.toLowerCase() ? (sup ? ' (you, Super Admin)' : ' (you)') : '')));
+      if (sup) li.appendChild(el('span', 'super-admin-badge', '\uD83D\uDC51 Super Admin'));
+      else if (adm) li.appendChild(ei('span', 'admin-badge', 'star', 'Admin'));
       if (amAdmin) {
         var b = el('button', 'link' + (adm ? ' danger' : ''), adm ? 'Remove admin' : 'Make admin');
         b.type = 'button';
         b.onclick = async function () {
+          if (sup) { uiAlert('Only the super admin can transfer this role.'); return; }
           if (adm && state.admins.length === 1 && !(await uiConfirm('This is the last admin. Remove anyway? Then anyone can claim admin again.', { title: 'Last admin', ok: 'Remove anyway', danger: true }))) return;
           setAdmin(n, !adm);
         };
