@@ -811,7 +811,24 @@
         state.itemVols = state.itemVols.filter(function (v) { return v.item_id !== it.id; });
         push({ t: 'volunteer_items', a: 'del', m: { id: it.id } }); renderAll();
       };
-      li.appendChild(info); li.appendChild(btn); li.appendChild(del);
+      li.appendChild(info); li.appendChild(btn);
+      if (isSuperAdmin(myName())) {
+        var asg = el('button', 'vol sm', 'Assign');
+        asg.onclick = async function () {
+          var n = await showModal({
+            title: 'Assign "' + it.item + '" to',
+            actions: memberNames().map(function (m) { return { label: m, value: m }; })
+          });
+          if (!n) return;
+          var v = { id: uid(), item_id: it.id, volunteer_name: n, created_at: nowIso() };
+          state.itemVols.push(v);
+          push({ t: 'item_volunteers', a: 'up', r: v });
+          if (it.volunteer_name) { it.volunteer_name = null; pushItem(it); }
+          renderAll();
+        };
+        li.appendChild(asg);
+      }
+      li.appendChild(del);
       // volunteer chips with remove (grouped by name with counts)
       if (vols.length) {
         var chips = el('div', 'vchips');
