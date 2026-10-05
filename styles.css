@@ -191,6 +191,8 @@ body.on-chat{overflow:hidden;padding-bottom:0}
 /* icons */
 svg.i{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em;margin-right:.7em}
 svg.i:only-child{margin-right:0}
+/* text nodes do not count for :only-child, so title icons matched it and lost their gap */
+.page-title svg.i{margin-right:.7em}
 .fold summary{justify-content:flex-start}
 .fold summary::after{margin-left:auto}
 .fold summary svg.i{width:1.2em;height:1.2em}
