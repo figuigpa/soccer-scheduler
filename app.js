@@ -126,11 +126,13 @@
       "check": "<polyline points=\"20 6 9 17 4 12\"/>",
       "shirt": "<path d=\"M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z\"/>",
       "clipboard": "<rect x=\"8\" y=\"2\" width=\"8\" height=\"4\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/>",
+      "cash": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"12\" rx=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M6 12h.01M18 12h.01\"/>",
       "chart": "<path d=\"M18 20V10M12 20V4M6 20v-6\"/>",
       "image": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><polyline points=\"21 15 16 10 5 21\"/>",
       "camera": "<path d=\"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z\"/><circle cx=\"12\" cy=\"13\" r=\"4\"/>",
       "mic": "<path d=\"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><line x1=\"12\" y1=\"19\" x2=\"12\" y2=\"23\"/><line x1=\"8\" y1=\"23\" x2=\"16\" y2=\"23\"/>",
       "send": "<line x1=\"22\" y1=\"2\" x2=\"11\" y2=\"13\"/><polygon points=\"22 2 15 22 11 13 2 9 22 2\"/>",
+      "share": "<circle cx=\"18\" cy=\"5\" r=\"3\"/><circle cx=\"6\" cy=\"12\" r=\"3\"/><circle cx=\"18\" cy=\"19\" r=\"3\"/><line x1=\"8.59\" y1=\"13.51\" x2=\"15.42\" y2=\"17.49\"/><line x1=\"15.41\" y1=\"6.51\" x2=\"8.59\" y2=\"10.49\"/>",
       "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"/>",
       "edit": "<path d=\"M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z\"/>",
       "trash": "<polyline points=\"3 6 5 6 21 6\"/><path d=\"M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2\"/>",
@@ -191,6 +193,54 @@
     if (addr && addr.trim()) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr.trim());
     return null;
   }
+  // ---------- share ----------
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast');
+    if (!t) { t = el('div', 'toast'); t.id = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, 2600);
+  }
+  async function shareText(title, text) {
+    if (navigator.share) {
+      try { await navigator.share({ title: title, text: text }); }
+      catch (e) { if (e && e.name !== 'AbortError') toast('Could not share'); }
+      return;
+    }
+    try { await navigator.clipboard.writeText(text); toast('Copied \u2014 paste it in your group'); }
+    catch (e) {
+      var ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e2) {}
+      ta.remove();
+      toast(ok ? 'Copied \u2014 paste it in your group' : 'Could not copy');
+    }
+  }
+  function shareBtn(label, build) {
+    var b = ei('button', 'share', 'share');
+    b.type = 'button'; b.setAttribute('aria-label', label);
+    b.onclick = function () { var s = build(); shareText(s.title, s.text); };
+    return b;
+  }
+  function gameShareText(p) {
+    var when = fmt(p), L = ['\uD83C\uDFDF\uFE0F Game'];
+    if (when) L.push('\uD83D\uDCC5 ' + when);
+    var place = [p.location, p.field_address].filter(Boolean).join(' \u2014 ');
+    if (place) L.push('\uD83D\uDCCD ' + place);
+    var m = mapsHref(p.field_map_url, p.field_address); if (m) L.push('\uD83D\uDDFA\uFE0F ' + m);
+    if (p.notes) L.push(p.notes);
+    return { title: 'Game', text: L.join('\n') };
+  }
+  function eventShareText(ev) {
+    var L = ['\uD83C\uDF89 ' + ev.title];
+    if (ev.date) L.push('\uD83D\uDCC5 ' + fmt(ev));
+    if (ev.venue_name) L.push('\uD83C\uDFE0 ' + ev.venue_name);
+    if (ev.venue_address) L.push('\uD83D\uDCCD ' + ev.venue_address);
+    var m = mapsHref(ev.venue_map_url, ev.venue_address); if (m) L.push('\uD83D\uDDFA\uFE0F ' + m);
+    if (ev.notes) L.push(ev.notes);
+    return { title: ev.title, text: L.join('\n') };
+  }
+
   function mapsBtn(url, addr) {
     var h = mapsHref(url, addr);
     if (!h) return null;
@@ -212,7 +262,7 @@
 
   // ---------- state / persistence ----------
   function blank() {
-    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], assignments: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], helpReqs: [], helpVols: [], announcements: [], admins: [],
+    return { practices: [], players: [], avail: {}, teams: {}, sel: null, events: [], items: [], itemVols: [], assignments: [], assignVols: [], expenses: [], chat: [], photos: [], albums: [], polls: [], pollOpts: [], pollVotes: [], helpReqs: [], helpVols: [], announcements: [], admins: [],
       lineup: { pos: {}, strokes: [] }, outbox: [] };
   }
   function load() {
@@ -449,7 +499,7 @@
   }
   async function pull() {
     setSync('busy');
-    var T = ['players', 'practices', 'availability', 'events', 'volunteer_items', 'assignments', 'chat_messages', 'lineup_positions'];
+    var T = ['players', 'practices', 'availability', 'events', 'volunteer_items', 'item_volunteers', 'assignments', 'assignment_assignees', 'event_expenses', 'chat_messages', 'lineup_positions'];
     var PT = ['polls', 'poll_options', 'poll_votes'];
     var pres = await Promise.all(PT.map(function (t) { return sb.from(t).select('*'); }));
     var res = await Promise.all(T.map(function (t) {
@@ -487,11 +537,14 @@
     d[2].forEach(function (r) { (state.avail[r.practice_id] = state.avail[r.practice_id] || {})[r.player_id] = r.status; });
     state.events = d[3].map(function (r) {
       return { id: r.id, title: r.title, date: r.date || '', time: (r.time || '').slice(0, 5), venue_name: r.venue_name || '',
-        venue_address: r.venue_address || '', venue_map_url: r.venue_map_url || '', notes: r.notes || '', created_at: r.created_at };
+        venue_address: r.venue_address || '', venue_map_url: r.venue_map_url || '', notes: r.notes || '', member_count: r.member_count || null, created_at: r.created_at };
     });
     state.items = d[4].sort(byCreated);
-    state.assignments = d[5].sort(byCreated);
-    state.chat = d[6].sort(byCreated).map(chatRow);
+    state.itemVols = (d[5] || []).sort(byCreated);
+    state.assignments = d[6].sort(byCreated);
+    state.assignVols = (d[7] || []).sort(byCreated);
+    state.expenses = (d[8] || []).sort(byCreated);
+    state.chat = d[9].sort(byCreated).map(chatRow);
     if (!photosRes.error) state.photos = (photosRes.data || []).sort(byCreated);
     if (!albumsRes.error) state.albums = (albumsRes.data || []).sort(byCreated);
     if (pollsOk) {
@@ -503,7 +556,7 @@
     if (helpOk) { state.helpReqs = helpRes[0].data.sort(byCreated); state.helpVols = helpRes[1].data.sort(byCreated); }
     if (adminsOk) state.admins = ad.data.sort(byCreated).map(function (r) { return r.name; });
     state.lineup.pos = {};
-    d[7].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
+    d[10].forEach(function (r) { state.lineup.pos[r.player_id] = { x: r.x, y: r.y }; });
     save(); setSync('synced');
     renderAll(true);
     checkSession();
@@ -649,14 +702,16 @@
     var actions = {
       poll: function () { openView('poll-view', 'poll-fold', 'poll-q'); },
       help: function () { openView('help-view', 'help-fold', 'h-title'); },
+      spend: function () { renderSpending(); var v = $('spend-view'); v.hidden = false; },
       ann: function () { renderAnnouncements(); if (!iAmAdmin()) { uiAlert('Only admins can post announcements.'); return; } openView('ann-view', 'ann-fold', 'ann-title'); }
     };
-    ['help', 'poll', 'ann'].forEach(function (k) { $(k + '-close').onclick = function () { $(k + '-view').hidden = true; }; });
+    ['help', 'poll', 'ann', 'spend'].forEach(function (k) { $(k + '-close').onclick = function () { $(k + '-view').hidden = true; }; });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || document.querySelector('.md-overlay')) return;
       if (wrap.classList.contains('show')) { setOpen(false); return; }
       if (!$('ann-view').hidden) $('ann-view').hidden = true;
       else if (!$('poll-view').hidden) $('poll-view').hidden = true;
+      else if (!$('spend-view').hidden) $('spend-view').hidden = true;
       else if (!$('help-view').hidden) $('help-view').hidden = true;
     });
     fab.onclick = function () { setOpen(!wrap.classList.contains('show')); };
@@ -718,38 +773,75 @@
   $('cal-next').onclick = function () { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); calSel = null; renderCalendar(); };
 
   // ---------- bring list (practices + events) ----------
-  function bringList(owner) {
+  function bringList(owner, noHead) {
     var key = owner.practice_id ? 'practice_id' : 'event_id';
     var oid = owner[key];
     var wrap = el('div', 'sub');
-    wrap.appendChild(ei('h4', null, 'package', 'Bring list'));
+    if (!noHead) wrap.appendChild(ei('h4', null, 'package', 'Bring list'));
     var items = state.items.filter(function (i) { return i[key] === oid; });
     var ul = el('ul', 'bring');
     if (!items.length) ul.appendChild(el('li', 'muted', 'Nothing yet — add what is needed.'));
     items.forEach(function (it) {
-      var li = el('li', it.volunteer_name ? 'taken' : '');
+      var vols = state.itemVols.filter(function (v) { return v.item_id === it.id; });
+      // migrate legacy single volunteer_name
+      if (it.volunteer_name && !vols.some(function (v) { return v.volunteer_name === it.volunteer_name; })) {
+        vols.push({ item_id: it.id, volunteer_name: it.volunteer_name });
+      }
+      var li = el('li', vols.length ? 'taken' : '');
       var info = el('div', 'grow');
       var t = el('strong', null, it.item);
       if (it.quantity) t.appendChild(el('span', 'qty', '× ' + it.quantity.replace(/^[x×]\s*/i, '')));
       info.appendChild(t);
-      if (it.volunteer_name) info.appendChild(ei('small', null, 'check', it.volunteer_name + ' is bringing it'));
-      var btn = el('button', 'vol' + (it.volunteer_name ? ' on' : ''), it.volunteer_name ? 'Withdraw' : "I'll bring it");
+      if (vols.length) info.appendChild(el('small', null, vols.length + ' bringing'));
+      var btn = el('button', 'vol sm', "+ Bring");
       btn.onclick = async function () {
-        if (it.volunteer_name) it.volunteer_name = null;
-        else {
-          var n = await askName('Your name?');
-          if (!n) return;
-          it.volunteer_name = n;
-        }
-        pushItem(it); renderAll();
+        var n = await askName('Your name?');
+        if (!n) return;
+        var v = { id: uid(), item_id: it.id, volunteer_name: n, created_at: nowIso() };
+        state.itemVols.push(v);
+        push({ t: 'item_volunteers', a: 'up', r: v });
+        // clear legacy field once migrated
+        if (it.volunteer_name) { it.volunteer_name = null; pushItem(it); }
+        renderAll();
       };
       var del = ei('button', 'del sm', 'x');
       del.setAttribute('aria-label', 'Remove item');
       del.onclick = function () {
         state.items = state.items.filter(function (x) { return x.id !== it.id; });
+        state.itemVols = state.itemVols.filter(function (v) { return v.item_id !== it.id; });
         push({ t: 'volunteer_items', a: 'del', m: { id: it.id } }); renderAll();
       };
       li.appendChild(info); li.appendChild(btn); li.appendChild(del);
+      // volunteer chips with remove (grouped by name with counts)
+      if (vols.length) {
+        var chips = el('div', 'vchips');
+        var groups = {};
+        vols.forEach(function (v) {
+          var k = v.volunteer_name.toLowerCase();
+          (groups[k] = groups[k] || { name: v.volunteer_name, list: [] }).list.push(v);
+        });
+        Object.keys(groups).sort().forEach(function (k) {
+          var g = groups[k];
+          var c = el('span', 'vchip', g.name + (g.list.length > 1 ? ' ×' + g.list.length : ''));
+          var x = el('button', 'vx', '−');
+          x.setAttribute('aria-label', 'Remove one from ' + g.name);
+          x.onclick = function (e) {
+            e.stopPropagation();
+            var v = g.list[g.list.length - 1];
+            if (v.id) {
+              state.itemVols = state.itemVols.filter(function (w) { return w.id !== v.id; });
+              push({ t: 'item_volunteers', a: 'del', m: { id: v.id } });
+            } else {
+              var it2 = state.items.filter(function (x) { return x.id === v.item_id; })[0];
+              if (it2) { it2.volunteer_name = null; pushItem(it2); }
+              state.itemVols = state.itemVols.filter(function (w) { return w !== v; });
+            }
+            renderAll();
+          };
+          c.appendChild(x); chips.appendChild(c);
+        });
+        li.appendChild(chips);
+      }
       ul.appendChild(li);
     });
     wrap.appendChild(ul);
@@ -828,7 +920,7 @@
     var edit = ei('button', 'edit', 'edit');
     edit.setAttribute('aria-label', 'Edit game');
     edit.onclick = function () { startPracticeEdit(p); };
-    top.appendChild(info); top.appendChild(edit); top.appendChild(del);
+    top.appendChild(info); top.appendChild(shareBtn('Share game', function () { return gameShareText(p); })); top.appendChild(edit); top.appendChild(del);
     li.appendChild(top);
     var me = mapEmbed(p.field_address);
     if (me) li.appendChild(me);
@@ -1347,48 +1439,196 @@
   }
   function eventRow(ev) {
     return { id: ev.id, title: ev.title, date: ev.date || null, time: ev.time || null, venue_name: ev.venue_name || null,
-      venue_address: ev.venue_address || null, venue_map_url: ev.venue_map_url || null, notes: ev.notes || null, created_at: ev.created_at || nowIso() };
+      venue_address: ev.venue_address || null, venue_map_url: ev.venue_map_url || null, notes: ev.notes || null, member_count: ev.member_count || null, created_at: ev.created_at || nowIso() };
   }
   function pushAssign(a) {
     push({ t: 'assignments', a: 'up', r: { id: a.id, event_id: a.event_id, task: a.task, assignee: a.assignee || null, done: !!a.done, created_at: a.created_at } });
   }
-  function assignments(ev) {
+  function assignments(ev, noHead) {
     var wrap = el('div', 'sub');
-    wrap.appendChild(ei('h4', null, 'clipboard', 'Who does what'));
+    if (!noHead) wrap.appendChild(ei('h4', null, 'clipboard', 'Who does what'));
     var list = state.assignments.filter(function (a) { return a.event_id === ev.id; });
     var ul = el('ul', 'bring');
     if (!list.length) ul.appendChild(el('li', 'muted', 'No tasks yet.'));
     list.forEach(function (a) {
+      var vols = state.assignVols.filter(function (v) { return v.assignment_id === a.id; });
+      if (a.assignee && !vols.some(function (v) { return v.assignee_name === a.assignee; })) {
+        vols.push({ assignment_id: a.id, assignee_name: a.assignee });
+      }
       var li = el('li', a.done ? 'taken' : '');
       var cb = el('input', 'cb'); cb.type = 'checkbox'; cb.checked = !!a.done;
       cb.setAttribute('aria-label', 'Done');
       cb.onchange = function () { a.done = cb.checked; pushAssign(a); renderAll(); };
       var info = el('div', 'grow');
       info.appendChild(el('strong', a.done ? 'strike' : '', a.task));
-      if (a.assignee) info.appendChild(ei('small', null, 'user', a.assignee));
+      if (vols.length) info.appendChild(el('small', null, vols.length + (vols.length === 1 ? ' volunteered' : ' volunteered')));
+      var addBtn = el('button', 'vol sm', "+ Volunteer");
+      addBtn.setAttribute('aria-label', 'Volunteer for this task');
+      addBtn.onclick = async function () {
+        var n = await askName('Your name?');
+        if (!n) return;
+        var v = { id: uid(), assignment_id: a.id, assignee_name: n, created_at: nowIso() };
+        state.assignVols.push(v);
+        push({ t: 'assignment_assignees', a: 'up', r: v });
+        if (a.assignee) { a.assignee = ''; pushAssign(a); }
+        renderAll();
+      };
       var del = ei('button', 'del sm', 'x');
       del.setAttribute('aria-label', 'Remove task');
       del.onclick = function () {
         state.assignments = state.assignments.filter(function (x) { return x.id !== a.id; });
+        state.assignVols = state.assignVols.filter(function (v) { return v.assignment_id !== a.id; });
         push({ t: 'assignments', a: 'del', m: { id: a.id } }); renderAll();
       };
-      li.appendChild(cb); li.appendChild(info); li.appendChild(del);
+      li.appendChild(cb); li.appendChild(info); li.appendChild(addBtn); li.appendChild(del);
+      if (vols.length) {
+        var chips = el('div', 'vchips');
+        var groups = {};
+        vols.forEach(function (v) {
+          var k = v.assignee_name.toLowerCase();
+          (groups[k] = groups[k] || { name: v.assignee_name, list: [] }).list.push(v);
+        });
+        Object.keys(groups).sort().forEach(function (k) {
+          var g = groups[k];
+          var c = el('span', 'vchip', g.name + (g.list.length > 1 ? ' ×' + g.list.length : ''));
+          var x = el('button', 'vx', '−');
+          x.setAttribute('aria-label', 'Remove one from ' + g.name);
+          x.onclick = function (e) {
+            e.stopPropagation();
+            var v = g.list[g.list.length - 1];
+            if (v.id) {
+              state.assignVols = state.assignVols.filter(function (w) { return w.id !== v.id; });
+              push({ t: 'assignment_assignees', a: 'del', m: { id: v.id } });
+            } else {
+              var a2 = state.assignments.filter(function (x) { return x.id === v.assignment_id; })[0];
+              if (a2) { a2.assignee = ''; pushAssign(a2); }
+              state.assignVols = state.assignVols.filter(function (w) { return w !== v; });
+            }
+            renderAll();
+          };
+          c.appendChild(x); chips.appendChild(c);
+        });
+        li.appendChild(chips);
+      }
       ul.appendChild(li);
     });
     wrap.appendChild(ul);
     var f = el('form', 'inline');
     var i1 = el('input'); i1.placeholder = 'Task (e.g. Book hall)'; i1.required = true;
-    var i2 = el('input', 'qty-in wide'); i2.placeholder = 'Assignee';
     var ad = el('button', 'primary sm', 'Add'); ad.type = 'submit';
-    f.appendChild(i1); f.appendChild(i2); f.appendChild(ad);
+    f.appendChild(i1); f.appendChild(ad);
     f.onsubmit = function (e) {
       e.preventDefault();
       if (!i1.value.trim()) return;
-      var a = { id: uid(), event_id: ev.id, task: i1.value.trim(), assignee: i2.value.trim(), done: false, created_at: nowIso() };
+      var a = { id: uid(), event_id: ev.id, task: i1.value.trim(), assignee: '', done: false, created_at: nowIso() };
       state.assignments.push(a); pushAssign(a); renderAll();
     };
     wrap.appendChild(f);
     return wrap;
+  }
+  function pushExpense(x) {
+    push({ t: 'event_expenses', a: 'up', r: { id: x.id, event_id: x.event_id, payer_name: x.payer_name, amount: x.amount, description: x.description || null, created_at: x.created_at } });
+  }
+  function spending(ev) {
+    var wrap = el('div', 'sub');
+    var exps = state.expenses.filter(function (x) { return x.event_id === ev.id; });
+    // member count
+    var mcRow = el('div', 'mc-row');
+    mcRow.appendChild(el('label', null, 'Members splitting:'));
+    var mc = el('input', 'qty-in'); mc.type = 'number'; mc.min = '1'; mc.placeholder = '#';
+    mc.value = ev.member_count || '';
+    mc.onchange = function () {
+      var n = parseInt(mc.value, 10);
+      ev.member_count = n > 0 ? n : null;
+      push({ t: 'events', a: 'up', r: eventRow(ev) });
+      renderAll();
+    };
+    mcRow.appendChild(mc);
+    wrap.appendChild(mcRow);
+    // expense list
+    var ul = el('ul', 'bring');
+    if (!exps.length) ul.appendChild(el('li', 'muted', 'No expenses yet.'));
+    exps.forEach(function (x) {
+      var li = el('li');
+      var info = el('div', 'grow');
+      info.appendChild(el('strong', null, '$' + Number(x.amount).toFixed(2)));
+      info.appendChild(ei('small', null, 'user', x.payer_name + (x.description ? ' · ' + x.description : '')));
+      var del = ei('button', 'del sm', 'x');
+      del.setAttribute('aria-label', 'Remove expense');
+      del.onclick = function () {
+        state.expenses = state.expenses.filter(function (y) { return y.id !== x.id; });
+        push({ t: 'event_expenses', a: 'del', m: { id: x.id } }); renderAll();
+      };
+      li.appendChild(info); li.appendChild(del);
+      ul.appendChild(li);
+    });
+    wrap.appendChild(ul);
+    // add form
+    var f = el('form', 'inline');
+    var i1 = el('input', 'qty-in wide'); i1.placeholder = 'Who paid?'; i1.required = true;
+    var i2 = el('input', 'qty-in'); i2.placeholder = '$'; i2.type = 'number'; i2.min = '0'; i2.step = '0.01'; i2.required = true;
+    var i3 = el('input'); i3.placeholder = 'For what? (optional)';
+    var ad = el('button', 'primary sm', 'Add'); ad.type = 'submit';
+    f.appendChild(i1); f.appendChild(i2); f.appendChild(i3); f.appendChild(ad);
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      if (!i1.value.trim() || !i2.value) return;
+      var x = { id: uid(), event_id: ev.id, payer_name: i1.value.trim(), amount: parseFloat(i2.value), description: i3.value.trim(), created_at: nowIso() };
+      state.expenses.push(x); pushExpense(x); renderAll();
+    };
+    wrap.appendChild(f);
+    // settlement calculation
+    if (exps.length) {
+      var total = exps.reduce(function (s, x) { return s + Number(x.amount); }, 0);
+      var n = ev.member_count || 0;
+      var sum = el('div', 'sp-sum');
+      sum.appendChild(el('div', null, 'Total spent: $' + total.toFixed(2)));
+      if (n > 0) {
+        var share = total / n;
+        sum.appendChild(el('div', null, 'Per person (' + n + '): $' + share.toFixed(2)));
+        var paid = {};
+        exps.forEach(function (x) { paid[x.payer_name] = (paid[x.payer_name] || 0) + Number(x.amount); });
+        var bal = el('ul', 'bring bal');
+        Object.keys(paid).sort().forEach(function (name) {
+          var diff = paid[name] - share;
+          var getsBack = diff >= -0.005;
+          var li = el('li', getsBack ? 'taken' : 'owes');
+          var info = el('div', 'grow');
+          info.appendChild(el('strong', null, name));
+          info.appendChild(ei('small', null, getsBack ? 'check' : 'user',
+            'paid $' + paid[name].toFixed(2) + ' → ' + (getsBack ? 'gets back $' + diff.toFixed(2) : 'owes $' + (-diff).toFixed(2))));
+          li.appendChild(info);
+          bal.appendChild(li);
+        });
+        sum.appendChild(bal);
+      } else {
+        sum.appendChild(el('div', 'muted', 'Enter the number of members above to see who owes what.'));
+      }
+      wrap.appendChild(sum);
+    }
+    return wrap;
+  }
+  var selEvent = null, selEvTab = {}, selSpendEvent = null;
+  function renderSpending() {
+    var sel = $('spend-event'), body = $('spend-body');
+    var list = state.events.slice().sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
+    sel.innerHTML = '';
+    if (!list.length) {
+      sel.appendChild(el('option', null, 'No gatherings yet'));
+      body.innerHTML = '';
+      body.appendChild(el('p', 'muted', 'Create a gathering event first.'));
+      return;
+    }
+    list.forEach(function (ev) {
+      var o = el('option'); o.value = ev.id; o.textContent = ev.title + (ev.date ? ' · ' + fmtDay(ev.date) : '');
+      sel.appendChild(o);
+    });
+    if (!selSpendEvent || !list.some(function (e) { return e.id === selSpendEvent; })) selSpendEvent = list[0].id;
+    sel.value = selSpendEvent;
+    sel.onchange = function () { selSpendEvent = sel.value; renderSpending(); };
+    var ev = list.filter(function (e) { return e.id === selSpendEvent; })[0];
+    body.innerHTML = '';
+    if (ev) body.appendChild(spending(ev));
   }
   function eventCard(ev) {
     var li = el('li', 'card-item');
@@ -1411,21 +1651,42 @@
     var edit = ei('button', 'edit', 'edit');
     edit.setAttribute('aria-label', 'Edit event');
     edit.onclick = function () { startEventEdit(ev); };
-    top.appendChild(info); top.appendChild(edit); top.appendChild(del);
+    top.appendChild(info); top.appendChild(shareBtn('Share event', function () { return eventShareText(ev); })); top.appendChild(edit); top.appendChild(del);
     li.appendChild(top);
     var me = mapEmbed(ev.venue_address);
     if (me) li.appendChild(me);
     var mb = mapsBtn(ev.venue_map_url, ev.venue_address);
     if (mb) { var acts = el('div', 'acts'); acts.appendChild(mb); li.appendChild(acts); }
-    li.appendChild(bringList({ event_id: ev.id }));
-    li.appendChild(assignments(ev));
+    var tab = selEvTab[ev.id] || 'bring';
+    var tbar = el('div', 'etabs inner');
+    [['bring', 'package', 'Bring list'], ['tasks', 'clipboard', 'Who does what']].forEach(function (t) {
+      var b = el('button', 'etab' + (tab === t[0] ? ' on' : ''));
+      b.innerHTML = svg(t[1]); b.appendChild(el('span', null, t[2]));
+      b.onclick = function () { selEvTab[ev.id] = t[0]; renderEvents(); };
+      tbar.appendChild(b);
+    });
+    li.appendChild(tbar);
+    li.appendChild(tab === 'bring' ? bringList({ event_id: ev.id }, true) : assignments(ev, true));
     return li;
   }
   function renderEvents() {
     var ul = $('event-list'); ul.innerHTML = '';
     var list = state.events.slice().sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
-    if (!list.length) ul.appendChild(el('li', 'muted empty', 'No events yet.'));
-    list.forEach(function (ev) { ul.appendChild(eventCard(ev)); });
+    if (!list.length) { ul.appendChild(el('li', 'muted empty', 'No events yet.')); return; }
+    if (!selEvent || !list.some(function (e) { return e.id === selEvent; })) selEvent = list[0].id;
+    if (list.length > 1) {
+      var tabs = el('div', 'etabs');
+      list.forEach(function (ev) {
+        var b = el('button', 'etab' + (ev.id === selEvent ? ' on' : ''));
+        b.appendChild(el('span', null, ev.title));
+        if (ev.date) b.appendChild(el('small', null, fmtDay(ev.date)));
+        b.onclick = function () { selEvent = ev.id; renderEvents(); };
+        tabs.appendChild(b);
+      });
+      ul.appendChild(tabs);
+    }
+    var cur = list.filter(function (e) { return e.id === selEvent; })[0] || list[0];
+    ul.appendChild(eventCard(cur));
   }
 
   // ---------- help requests ----------
@@ -2336,7 +2597,6 @@
   }
   $('chat-file').onchange = sendPhotoFile;
   $('chat-cam').onchange = sendPhotoFile;
-  $('chat-emoji').onclick = function () { $('chat-input').focus(); };
   function syncSendBtn() {
     var has = !!$('chat-input').value.trim(), b = $('chat-mic');
     if (rec || b.disabled) return;
@@ -2715,7 +2975,7 @@
   function renderAll(fromSync) {
     var ae = document.activeElement;
     if (fromSync && ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && !chatActive()) { renderChat(); return; }
-    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderHelp(); renderPolls(); renderAnnouncements(); renderCalendar(); renderChat(); renderMembers(); renderAlbum();
+    renderPractices(); renderPlayers(); renderAvail(); renderTeams(); renderLineup(); renderEvents(); renderSpending(); renderHelp(); renderPolls(); renderAnnouncements(); renderCalendar(); renderChat(); renderMembers(); renderAlbum();
   }
   renderTeamName();
   renderTeamPic();

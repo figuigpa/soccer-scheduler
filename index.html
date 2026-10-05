@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=37">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="locked">
@@ -246,7 +246,6 @@
         <input id="chat-file" type="file" accept="image/*" hidden>
         <input id="chat-cam" type="file" accept="image/*" capture="environment" hidden>
         <div class="pill">
-          <button class="tool" type="button" id="chat-emoji" aria-label="Emoji" data-ic="smile"></button>
           <input id="chat-input" type="text" placeholder="Message" autocomplete="off" aria-label="Message">
           <button class="tool" type="button" id="chat-attach" aria-label="Attach picture" data-ic="clip"></button>
           <button class="tool" type="button" id="chat-photo" aria-label="Camera" data-ic="camera"></button>
@@ -292,6 +291,15 @@
     <ul id="poll-list" class="list"></ul>
   </div>
 </div>
+<div id="spend-view" class="help-view" role="dialog" aria-modal="true" aria-label="Spending" hidden>
+  <div class="help-head"><h2 class="page-title" data-ic="cash">Spending</h2><button id="spend-close" class="view-close" type="button" aria-label="Close" data-ic="x"></button></div>
+  <div class="help-body">
+    <label class="fld">Gathering
+      <select id="spend-event"></select>
+    </label>
+    <div id="spend-body"></div>
+  </div>
+</div>
 <div id="ann-view" class="help-view" role="dialog" aria-modal="true" aria-label="Announcements" hidden>
   <div class="help-head"><h2 class="page-title" data-ic="megaphone">Announcements</h2><button id="ann-close" class="view-close" type="button" aria-label="Close" data-ic="x"></button></div>
   <div class="help-body">
@@ -311,6 +319,7 @@
     <div class="qa-grab"></div>
     <button type="button" data-qa="poll" data-ic="chart">New poll</button>
     <button type="button" data-qa="help" data-ic="users">New help request</button>
+    <button type="button" data-qa="spend" data-ic="cash">Spending</button>
     <button type="button" data-qa="ann" data-ic="megaphone">New announcement</button>
   </div>
 </div>
