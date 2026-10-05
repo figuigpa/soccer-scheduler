@@ -2785,6 +2785,17 @@
       box.appendChild(el('p', 'muted', amAdmin ? 'You are an admin: you can appoint admins and delete any message or poll.'
         : 'Admins (star) can delete any message or poll and appoint other admins.'));
     }
+    var loginPlayers = state.players.filter(function (p) { return p.category !== 'kid'; });
+    var notIn = loginPlayers.filter(function (p) { return !p.pin; });
+    if (amAdmin && loginPlayers.length) {
+      var done = loginPlayers.length - notIn.length;
+      var st = el('div', 'login-stat');
+      st.appendChild(el('strong', '', done + ' of ' + loginPlayers.length + ' members logged in'));
+      var bar = el('div', 'login-bar'), fill = el('span', '');
+      fill.style.width = Math.round(done * 100 / loginPlayers.length) + '%';
+      bar.appendChild(fill); st.appendChild(bar);
+      box.appendChild(st);
+    }
     var ul = el('ul', 'member-list');
     memberNames().forEach(function (n) {
       var adm = isAdmin(n);
@@ -2804,6 +2815,16 @@
       ul.appendChild(li);
     });
     box.appendChild(ul);
+    if (amAdmin && loginPlayers.length) {
+      var nd = el('details', 'login-missing');
+      nd.appendChild(el('summary', '', "Haven't logged in yet (" + notIn.length + ')'));
+      if (notIn.length) {
+        var nl = el('ul', 'login-missing-list');
+        notIn.forEach(function (p) { nl.appendChild(el('li', '', p.name)); });
+        nd.appendChild(nl);
+      } else nd.appendChild(el('p', 'muted', "Everyone's in! 🎉"));
+      box.appendChild(nd);
+    }
   }
   function openMembers() { $('members').hidden = !$('members').hidden; renderMembers(); }
   $('members-btn').onclick = function () { $('chat-menu').hidden = true; openMembers(); };

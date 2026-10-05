@@ -156,6 +156,13 @@ body.on-chat{overflow:hidden;padding-bottom:0}
 
 .members{background:#fff;border-bottom:1px solid #ddd;max-height:60%;overflow:auto;padding:8px 16px}
 .members[hidden]{display:none}
+.login-stat{margin:8px 0}
+.login-bar{height:8px;border-radius:4px;background:var(--line);margin-top:6px;overflow:hidden}
+.login-bar span{display:block;height:100%;background:var(--green2)}
+.login-missing{margin:10px 0}
+.login-missing summary{cursor:pointer;font-weight:700;color:var(--green)}
+.login-missing-list{margin:6px 0 0;padding-left:20px}
+.members .login-missing summary{color:#53bdeb}
 .members-head{display:flex;justify-content:space-between;align-items:center}
 .member-list{list-style:none;margin:0;padding:0}
 .member{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #eee}
