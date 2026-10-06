@@ -83,6 +83,7 @@ button:active{transform:scale(.96)}
 .bring li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #eef2ed}
 .bring li.muted{display:block;border:0}
 .bring li.taken strong{color:var(--green2)}
+.bring li.unclaimed strong{color:#d32f2f}
 .bring li.owes strong{color:var(--red)}
 .bring li .grow{flex:1 1 auto;min-width:0}
 .bring li .vchips{flex:1 1 100%}

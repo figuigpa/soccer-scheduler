@@ -787,7 +787,7 @@
       if (it.volunteer_name && !vols.some(function (v) { return v.volunteer_name === it.volunteer_name; })) {
         vols.push({ item_id: it.id, volunteer_name: it.volunteer_name });
       }
-      var li = el('li', vols.length ? 'taken' : '');
+      var li = el('li', vols.length ? 'taken' : 'unclaimed');
       var info = el('div', 'grow');
       var t = el('strong', null, it.item);
       if (it.quantity) t.appendChild(el('span', 'qty', '× ' + it.quantity.replace(/^[x×]\s*/i, '')));
@@ -875,7 +875,66 @@
       state.items.push(it); pushItem(it); renderAll();
     };
     wrap.appendChild(f);
+    var share = ei('button', 'link', 'share', 'Share list image');
+    share.type = 'button';
+    share.onclick = function () { shareBringImage(owner, items); };
+    wrap.appendChild(share);
     return wrap;
+  }
+  function bringRows(items) {
+    return items.map(function (it) {
+      var names = state.itemVols.filter(function (v) { return v.item_id === it.id; }).map(function (v) { return v.volunteer_name; });
+      if (it.volunteer_name && names.indexOf(it.volunteer_name) < 0) names.push(it.volunteer_name);
+      var counts = {}, order = [];
+      names.forEach(function (n) { var k = n.toLowerCase(); if (!counts[k]) { counts[k] = { n: n, c: 0 }; order.push(k); } counts[k].c++; });
+      var who = order.map(function (k) { return counts[k].n + (counts[k].c > 1 ? ' ×' + counts[k].c : ''); }).join(', ');
+      var q = it.quantity ? ' × ' + it.quantity.replace(/^[x×]\s*/i, '') : '';
+      return { name: it.item + q, who: who };
+    });
+  }
+  function shareBringImage(owner, items) {
+    var label, date = '';
+    if (owner.practice_id) {
+      var p = state.practices.filter(function (x) { return x.id === owner.practice_id; })[0];
+      if (p) { date = p.date || ''; label = 'Practice ' + date; }
+    } else {
+      var ev = state.events.filter(function (x) { return x.id === owner.event_id; })[0];
+      if (ev) { date = ev.date || ''; label = ev.title + (date ? ' — ' + date : ''); }
+    }
+    var rows = bringRows(items);
+    var font = 'Helvetica, Arial, sans-serif', pad = 40, rowH = 56, headH = 130, W = 800;
+    var H = headH + Math.max(rows.length, 1) * rowH + pad;
+    var scale = 2, c = document.createElement('canvas');
+    c.width = W * scale; c.height = H * scale;
+    var g = c.getContext('2d');
+    g.scale(scale, scale);
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.textBaseline = 'middle';
+    g.fillStyle = '#111'; g.font = 'bold 36px ' + font;
+    g.fillText('Bring list', pad, 50);
+    g.fillStyle = '#555'; g.font = '24px ' + font;
+    g.fillText(label || '', pad, 92);
+    g.strokeStyle = '#ccc'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(pad, headH - 12); g.lineTo(W - pad, headH - 12); g.stroke();
+    if (!rows.length) { g.fillStyle = '#555'; g.font = '24px ' + font; g.fillText('Nothing on the list yet.', pad, headH + rowH / 2); }
+    rows.forEach(function (r, i) {
+      var y = headH + i * rowH + rowH / 2;
+      g.font = 'bold 26px ' + font;
+      g.fillStyle = r.who ? '#111' : '#d32f2f';
+      g.fillText(r.name, pad, y);
+      var nw = g.measureText(r.name).width;
+      g.font = '26px ' + font;
+      g.fillStyle = r.who ? '#111' : '#d32f2f';
+      g.fillText(r.who ? '— ' + r.who : '— needed!', pad + nw + 14, y);
+    });
+    c.toBlob(function (blob) {
+      if (!blob) return;
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'bring-list-' + (date || 'list') + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    }, 'image/png');
   }
   function pushItem(it) {
     push({ t: 'volunteer_items', a: 'up', r: { id: it.id, practice_id: it.practice_id || null, event_id: it.event_id || null, item: it.item,
